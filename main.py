@@ -31,6 +31,14 @@ from diagnosis import FaultDiagnoser, FaultInjector, FaultType
 from control import SynergyController, ControlMode
 from visualization import CalibrationPlotter, SynergyPlotter, PerformanceRadar, CalibrationProcessPlotter
 
+# 导入双智能体模块
+try:
+    from agents import CoordinatorAgent, DiagnosisAgent, ControlAgent
+    AGENTS_AVAILABLE = True
+except ImportError:
+    AGENTS_AVAILABLE = False
+    print("警告: agents模块未找到，将使用传统控制器")
+
 
 def run_calibration(csv_path: str = "calibration_data.csv", 
                     n_points: int = 5) -> MarineEngine0D:
@@ -88,12 +96,13 @@ def run_calibration(csv_path: str = "calibration_data.csv",
     return engine
 
 
-def run_fault_simulation(engine: MarineEngine0D) -> dict:
+def run_fault_simulation(engine: MarineEngine0D, use_agents: bool = True) -> dict:
     """
     运行故障注入与诊断仿真
     
     Args:
         engine: 发动机模型
+        use_agents: 是否使用双智能体架构 (默认True)
         
     Returns:
         response_data: 响应数据字典
@@ -120,10 +129,27 @@ def run_fault_simulation(engine: MarineEngine0D) -> dict:
     print(f"基准Pmax: {Pmax_baseline:.1f} bar")
     print(f"基准Pcomp: {Pcomp_baseline:.1f} bar")
     
-    # 创建诊断器和控制器
-    diagnoser = FaultDiagnoser(engine)
-    controller = SynergyController(engine, diagnoser)
-    fault_injector = FaultInjector(engine)
+    # 根据模式创建诊断器和控制器
+    if use_agents and AGENTS_AVAILABLE:
+        print("\n[使用双智能体架构]")
+        # 创建诊断智能体和控制智能体
+        diagnosis_agent = DiagnosisAgent(engine)
+        control_agent = ControlAgent(engine, use_rl=True)
+        
+        # 创建协调器
+        coordinator = CoordinatorAgent(engine, diagnosis_agent, control_agent)
+        
+        # 故障注入器
+        fault_injector = FaultInjector(engine)
+        
+        using_agents = True
+    else:
+        print("\n[使用传统控制器]")
+        # 创建传统诊断器和控制器
+        diagnoser = FaultDiagnoser(engine)
+        controller = SynergyController(engine, diagnoser)
+        fault_injector = FaultInjector(engine)
+        using_agents = False
     
     # 设置健康基准
     engine.set_baseline(Pmax_baseline, Pcomp_baseline, engine.get_exhaust_temp())
@@ -152,6 +178,8 @@ def run_fault_simulation(engine: MarineEngine0D) -> dict:
     vit_adjustments = []
     fuel_adjustments = []
     diagnosis_results = []
+    action_sources = []      # 新增: 记录动作来源
+    conflicts_detected = []  # 新增: 记录冲突检测
     
     print("\n开始仿真...")
     
@@ -178,9 +206,21 @@ def run_fault_simulation(engine: MarineEngine0D) -> dict:
             'Texh': engine.get_exhaust_temp()
         }
         
-        action = controller.update(Y_measured, t)
-        vit_adjustments.append(action.vit_adjustment)
-        fuel_adjustments.append(action.fuel_adjustment)
+        if using_agents:
+            # 使用双智能体协调器
+            decision = coordinator.step(Y_measured, t)
+            action = decision.control_action
+            vit_adjustments.append(action.vit_adjustment)
+            fuel_adjustments.append(action.fuel_adjustment)
+            action_sources.append(action.action_source)
+            conflicts_detected.append(decision.conflict_resolved)
+        else:
+            # 使用传统控制器
+            action = controller.update(Y_measured, t)
+            vit_adjustments.append(action.vit_adjustment)
+            fuel_adjustments.append(action.fuel_adjustment)
+            action_sources.append("PID")
+            conflicts_detected.append(False)
         
         # 计算协同控制后的Pmax
         # 简化模型: VIT每滞后1度, Pmax降低约2bar
@@ -188,21 +228,45 @@ def run_fault_simulation(engine: MarineEngine0D) -> dict:
         Pmax_synergy.append(Pmax_controlled)
         
         # 记录诊断结果
-        if diagnoser.diagnosis_history:
-            diagnosis_results.append(diagnoser.diagnosis_history[-1])
+        if using_agents:
+            if coordinator.diagnosis_agent.diagnosis_history:
+                diagnosis_results.append(coordinator.diagnosis_agent.diagnosis_history[-1])
+        else:
+            if diagnoser.diagnosis_history:
+                diagnosis_results.append(diagnoser.diagnosis_history[-1])
     
     # 清理
     fault_injector.clear_all_faults()
-    controller.reset()
+    
+    if using_agents:
+        coordinator.reset()
+    else:
+        controller.reset()
     
     print("仿真完成!")
     
     # 输出性能汇总
-    perf = controller.get_performance_summary()
-    print(f"\n控制器性能汇总:")
-    print(f"  总干预次数: {perf['total_interventions']}")
-    print(f"  Pmax越限次数: {perf['pmax_violations']}")
-    print(f"  平均VIT调整: {perf['avg_vit_adjustment']:.2f}°")
+    if using_agents:
+        report = coordinator.get_comprehensive_report()
+        print(f"\n=== 双智能体系统性能汇总 ===")
+        print(f"  系统状态: {report['system_state']}")
+        print(f"  总步数: {report['coordinator_metrics']['total_steps']}")
+        print(f"  冲突检测: {report['coordinator_metrics']['conflicts_detected']}")
+        print(f"  冲突解决: {report['coordinator_metrics']['conflicts_resolved']}")
+        print(f"  平均协调耗时: {report['coordinator_metrics']['avg_coordination_time_ms']:.2f}ms")
+        print(f"\n  诊断智能体:")
+        print(f"    学习阈值: {report['diagnosis_agent']['learned_thresholds']}")
+        print(f"    分类器状态: {report['diagnosis_agent']['classifier_status']}")
+        print(f"\n  控制智能体:")
+        print(f"    当前VIT: {report['control_agent']['current_vit']:.2f}°")
+        print(f"    RL动作占比: {report['control_agent']['performance']['rl_actions']}/{report['control_agent']['performance']['total_actions']}")
+        perf = report['control_agent']['performance']
+    else:
+        perf = controller.get_performance_summary()
+        print(f"\n控制器性能汇总:")
+        print(f"  总干预次数: {perf['total_interventions']}")
+        print(f"  Pmax越限次数: {perf['pmax_violations']}")
+        print(f"  平均VIT调整: {perf['avg_vit_adjustment']:.2f}°")
     
     return {
         'time': np.array(times),
@@ -212,6 +276,9 @@ def run_fault_simulation(engine: MarineEngine0D) -> dict:
         'Pmax_synergy': np.array(Pmax_synergy),
         'vit_adjustment': np.array(vit_adjustments),
         'fuel_adjustment': np.array(fuel_adjustments),
+        'action_sources': action_sources,
+        'conflicts': conflicts_detected,
+        'using_agents': using_agents,
     }
 
 
@@ -424,9 +491,9 @@ def main():
     )
     parser.add_argument(
         '--mode', type=str, default='demo',
-        choices=['demo', 'calibrate', 'simulate', 'dashboard', 'plot'],
+        choices=['demo', 'calibrate', 'simulate', 'dashboard', 'plot', 'agents'],
         help='运行模式: demo(完整演示), calibrate(仅校准), '
-             'simulate(仅仿真), dashboard(交互式), plot(仅绑图)'
+             'simulate(仅仿真), dashboard(交互式), plot(仅绑图), agents(双智能体演示)'
     )
     parser.add_argument(
         '--csv', type=str, default='calibration_data.csv',
@@ -475,6 +542,28 @@ def main():
             'fuel_adjustment': np.zeros(100),
         }
         generate_plots(engine, response_data)
+    
+    elif args.mode == 'agents':
+        # 双智能体专用演示模式
+        print("\n" + "=" * 70)
+        print("  双智能体架构演示")
+        print("=" * 70)
+        
+        if not AGENTS_AVAILABLE:
+            print("错误: agents模块不可用")
+            return
+        
+        engine = run_calibration(args.csv, args.points)
+        
+        # 强制使用双智能体
+        response_data = run_fault_simulation(engine, use_agents=True)
+        
+        # 生成图表
+        generate_plots(engine, response_data)
+        
+        print("\n双智能体演示完成!")
+        import matplotlib.pyplot as plt
+        plt.show()
 
 
 if __name__ == "__main__":
