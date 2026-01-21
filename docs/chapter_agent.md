@@ -39,9 +39,11 @@
 本文提出的双智能体控诊协同系统采用分层协作架构，如图X-1所示。系统由三个核心组件构成：诊断智能体（Diagnosis Agent）、控制智能体（Control Agent）和协调器（Coordinator）。
 
 **【图X-1位置：双智能体系统总体架构图】**
-> *图X-1 双智能体控诊协同系统架构*
-> 
+
+> _图X-1 双智能体控诊协同系统架构_
+>
 > 说明：该图应展示以下内容：
+>
 > - 顶层：协调器（Coordinator），包含消息代理和冲突解决器
 > - 中层：诊断智能体和控制智能体并列
 > - 底层：船用柴油机物理模型
@@ -63,6 +65,7 @@
 $$\mathcal{A} = \langle S, P, D, L \rangle$$
 
 其中：
+
 - $S$：状态空间（State Space）
 - $P: \mathcal{O} \rightarrow S$：感知函数（Perceive），将观测映射到内部状态
 - $D: S \rightarrow A$：决策函数（Decide），将状态映射到动作
@@ -88,13 +91,13 @@ $$M = \langle \text{type}, \text{sender}, \text{receiver}, \text{payload}, \text
 
 系统定义了以下消息类型：
 
-| 消息类型 | 发送者 | 接收者 | 用途 |
-|---------|--------|--------|------|
-| `DIAGNOSIS_RESULT` | 诊断智能体 | 协调器 | 传递诊断结果 |
-| `FAULT_ALERT` | 诊断智能体 | 控制智能体 | 故障预警 |
-| `CONTROL_ACTION` | 控制智能体 | 协调器 | 控制动作 |
-| `STATE_UPDATE` | 协调器 | 全体 | 系统状态更新 |
-| `LEARNING_UPDATE` | 各智能体 | 协调器 | 学习进度 |
+| 消息类型           | 发送者     | 接收者     | 用途         |
+| ------------------ | ---------- | ---------- | ------------ |
+| `DIAGNOSIS_RESULT` | 诊断智能体 | 协调器     | 传递诊断结果 |
+| `FAULT_ALERT`      | 诊断智能体 | 控制智能体 | 故障预警     |
+| `CONTROL_ACTION`   | 控制智能体 | 协调器     | 控制动作     |
+| `STATE_UPDATE`     | 协调器     | 全体       | 系统状态更新 |
+| `LEARNING_UPDATE`  | 各智能体   | 协调器     | 学习进度     |
 
 ### X.2.4 系统状态定义
 
@@ -110,8 +113,9 @@ $$\text{SystemState} = \{\text{NORMAL}, \text{WARNING}, \text{CRITICAL}, \text{E
 - **任意状态 → NORMAL**：异常消除并稳定运行超过设定时间
 
 **【图X-2位置：系统状态转换图】**
-> *图X-2 系统状态有限状态机*
-> 
+
+> _图X-2 系统状态有限状态机_
+>
 > 说明：绘制四状态有限状态机，标注转换条件
 
 ---
@@ -127,8 +131,9 @@ $$\text{SystemState} = \{\text{NORMAL}, \text{WARNING}, \text{CRITICAL}, \text{E
 3. **趋势预测器**（Trend Predictor）
 
 **【图X-3位置：诊断智能体内部架构图】**
-> *图X-3 诊断智能体架构*
-> 
+
+> _图X-3 诊断智能体架构_
+>
 > 说明：展示三个模块的关系和数据流
 
 ### X.3.2 自适应阈值学习算法
@@ -161,18 +166,22 @@ $$\tau_t^{lower} = \mu_t - k \cdot \sigma_t$$
 
 当测量值超出阈值范围时，判定为异常：
 
-$$\text{anomaly}_t = \begin{cases}
+$$
+\text{anomaly}_t = \begin{cases}
 1, & \text{if } y_t > \tau_t^{upper} \text{ or } y_t < \tau_t^{lower} \\
 0, & \text{otherwise}
-\end{cases}$$
+\end{cases}
+$$
 
 异常程度量化为：
 
-$$d_t = \begin{cases}
+$$
+d_t = \begin{cases}
 \frac{y_t - \tau_t^{upper}}{\sigma_t}, & \text{if } y_t > \tau_t^{upper} \\
 \frac{\tau_t^{lower} - y_t}{\sigma_t}, & \text{if } y_t < \tau_t^{lower} \\
 0, & \text{otherwise}
-\end{cases}$$
+\end{cases}
+$$
 
 #### X.3.2.3 在线学习机制
 
@@ -218,6 +227,7 @@ Output: 当前阈值 τ_upper, τ_lower
 $$\mathbf{f}_{raw} = [P_{max}, P_{comp}, T_{exh}, \dot{m}_f, n]^T$$
 
 其中：
+
 - $P_{max}$：最高爆发压力 (bar)
 - $P_{comp}$：压缩压力 (bar)
 - $T_{exh}$：排气温度 (K)
@@ -262,14 +272,14 @@ $$\text{conf}_{RF}(c) = \frac{1}{B} \sum_{b=1}^{B} \mathbb{I}[h_b(\mathbf{x}) = 
 
 **表X-1 故障特征规则库**
 
-| 故障类型 | $\Delta P_{max}$ | $\Delta P_{comp}$ | $\Delta T_{exh}$ | 规则描述 |
-|---------|-----------------|------------------|-----------------|---------|
-| 喷油正时提前 | ↑ (+) | → (0) | ↓ (-) | Pmax升高，Pcomp不变，Texh降低 |
-| 喷油正时滞后 | ↓ (-) | → (0) | ↑ (+) | Pmax降低，Pcomp不变，Texh升高 |
-| 喷油量过大 | ↑ (+) | → (0) | ↑ (+) | Pmax和Texh都升高 |
-| 喷油量过小 | ↓ (-) | → (0) | ↓ (-) | Pmax和Texh都降低 |
-| 气缸压缩不良 | ↓ (-) | ↓ (-) | ↑ (+) | Pmax和Pcomp都降低 |
-| 燃烧不良 | → (0) | → (0) | ↑ (+) | 仅Texh显著升高 |
+| 故障类型     | $\Delta P_{max}$ | $\Delta P_{comp}$ | $\Delta T_{exh}$ | 规则描述                      |
+| ------------ | ---------------- | ----------------- | ---------------- | ----------------------------- |
+| 喷油正时提前 | ↑ (+)            | → (0)             | ↓ (-)            | Pmax升高，Pcomp不变，Texh降低 |
+| 喷油正时滞后 | ↓ (-)            | → (0)             | ↑ (+)            | Pmax降低，Pcomp不变，Texh升高 |
+| 喷油量过大   | ↑ (+)            | → (0)             | ↑ (+)            | Pmax和Texh都升高              |
+| 喷油量过小   | ↓ (-)            | → (0)             | ↓ (-)            | Pmax和Texh都降低              |
+| 气缸压缩不良 | ↓ (-)            | ↓ (-)             | ↑ (+)            | Pmax和Pcomp都降低             |
+| 燃烧不良     | → (0)            | → (0)             | ↑ (+)            | 仅Texh显著升高                |
 
 规则匹配度计算：
 
@@ -277,11 +287,13 @@ $$\text{match}(r_i, \mathbf{f}_{dev}) = \prod_{j=1}^{3} \text{sign\_match}(r_{ij
 
 其中符号匹配函数定义为：
 
-$$\text{sign\_match}(r, f) = \begin{cases}
+$$
+\text{sign\_match}(r, f) = \begin{cases}
 1, & \text{if sign}(r) = \text{sign}(f) \text{ and } |f| > \epsilon \\
 1, & \text{if } r = 0 \text{ and } |f| \leq \epsilon \\
 0, & \text{otherwise}
-\end{cases}$$
+\end{cases}
+$$
 
 #### X.3.3.4 集成决策
 
@@ -292,8 +304,9 @@ $$\hat{y} = \arg\max_{c \in \mathcal{C}} \left[ w_{RF} \cdot \text{conf}_{RF}(c)
 其中权重设置为 $w_{RF} = 0.6$，$w_{rule} = 0.4$，平衡数据驱动方法的泛化能力和规则方法的可解释性。
 
 **【图X-4位置：集成分类器决策流程图】**
-> *图X-4 集成故障分类器决策流程*
-> 
+
+> _图X-4 集成故障分类器决策流程_
+>
 > 说明：展示特征提取→RF分类→规则匹配→加权投票的流程
 
 ### X.3.4 趋势预测器
@@ -316,11 +329,13 @@ $$\hat{y}_{t+h} = \beta_0 + \beta_1 \cdot (t + h)$$
 
 趋势方向判断：
 
-$$\text{trend} = \begin{cases}
+$$
+\text{trend} = \begin{cases}
 \text{RISING}, & \text{if } \beta_1 > \delta \\
 \text{FALLING}, & \text{if } \beta_1 < -\delta \\
 \text{STABLE}, & \text{otherwise}
-\end{cases}$$
+\end{cases}
+$$
 
 其中 $\delta$ 为趋势判断阈值。
 
@@ -333,8 +348,9 @@ $$\text{trend} = \begin{cases}
 控制智能体负责根据诊断结果和系统状态，计算最优的控制动作。其核心采用深度Q网络（DQN）强化学习策略，并结合安全约束层和PID备份控制器，形成多层次的控制架构。
 
 **【图X-5位置：控制智能体架构图】**
-> *图X-5 控制智能体内部架构*
-> 
+
+> _图X-5 控制智能体内部架构_
+>
 > 说明：展示DQN策略→安全约束层→执行器的层次结构
 
 ### X.4.2 控制问题建模
@@ -378,10 +394,13 @@ $$r = r_{tracking} + r_{violation} + r_{effort} + r_{fuel}$$
 $$r_{tracking} = -\lambda_1 \cdot |P_{max} - P_{max,target}|$$
 
 **越限惩罚**：
-$$r_{violation} = \begin{cases}
+
+$$
+r_{violation} = \begin{cases}
 -\lambda_2 \cdot (P_{max} - P_{max,limit})^2, & \text{if } P_{max} > P_{max,limit} \\
 0, & \text{otherwise}
-\end{cases}$$
+\end{cases}
+$$
 
 **控制平滑性**：
 $$r_{effort} = -\lambda_3 \cdot (|\Delta VIT| + |\Delta fuel|)$$
@@ -420,8 +439,9 @@ $$\rightarrow \text{FC}(64) \rightarrow \text{ReLU} \rightarrow \text{FC}(|\math
 $$\text{ReLU}(x) = \max(0, x)$$
 
 **【图X-6位置：DQN网络结构图】**
-> *图X-6 DQN神经网络结构*
-> 
+
+> _图X-6 DQN神经网络结构_
+>
 > 说明：绘制输入层→隐藏层1(128)→隐藏层2(64)→输出层(|A|)的网络图
 
 #### X.4.3.3 经验回放机制
@@ -476,10 +496,12 @@ $$\theta \leftarrow \theta - \alpha \nabla_\theta \mathcal{L}(\theta)$$
 
 #### X.4.3.7 ε-贪婪探索策略
 
-$$a_t = \begin{cases}
+$$
+a_t = \begin{cases}
 \text{random action from } \mathcal{A}, & \text{with probability } \epsilon \\
 \arg\max_a Q(s_t, a; \theta), & \text{with probability } 1 - \epsilon
-\end{cases}$$
+\end{cases}
+$$
 
 探索率衰减：
 $$\epsilon_t = \max(\epsilon_{min}, \epsilon_0 \cdot \rho^t)$$
@@ -533,10 +555,12 @@ $$\text{margin} = \frac{P_{max,limit} - P_{max,current}}{P_{max,limit}}$$
 
 当检测到安全裕度不足时，覆盖RL动作：
 
-$$a_{safe} = \begin{cases}
+$$
+a_{safe} = \begin{cases}
 a_{RL}, & \text{if margin} > \delta_{safe} \\
 a_{conservative}, & \text{otherwise}
-\end{cases}$$
+\end{cases}
+$$
 
 保守动作定义：
 $$a_{conservative} = (VIT = -4°, fuel = -10\%)$$
@@ -560,8 +584,9 @@ $$u_{VIT}(k) = K_{p,VIT} \cdot e(k) + K_{i,VIT} \cdot T_s \sum_{i=0}^{k} e(i) + 
 $$I_{sat} = \text{clamp}(I, I_{min}, I_{max})$$
 
 **【图X-7位置：PID控制器框图】**
-> *图X-7 PID备份控制器结构*
-> 
+
+> _图X-7 PID备份控制器结构_
+>
 > 说明：绘制经典PID控制框图，包含抗积分饱和环节
 
 ---
@@ -588,11 +613,13 @@ $$\text{subscribe}(\text{agent\_id}, \text{message\_types}) \rightarrow \text{re
 
 消息队列采用优先级队列实现，紧急消息优先处理：
 
-$$\text{priority}(M) = \begin{cases}
+$$
+\text{priority}(M) = \begin{cases}
 1 \text{ (最高)}, & \text{if } M.\text{type} = \text{EMERGENCY} \\
 2, & \text{if } M.\text{type} = \text{FAULT\_ALERT} \\
 3, & \text{otherwise}
-\end{cases}$$
+\end{cases}
+$$
 
 ### X.5.3 冲突检测
 
@@ -639,13 +666,15 @@ $$a_{resolved} = \arg\max_a \left[w_{safety} \cdot r_{safety}(a) + w_{perf} \cdo
 $$D = \langle \text{control\_action}, \text{system\_state}, \text{conflict\_resolved} \rangle$$
 
 其中：
+
 - $\text{control\_action}$：最终控制动作 $(VIT, fuel)$
 - $\text{system\_state}$：当前系统状态等级
 - $\text{conflict\_resolved}$：是否解决了冲突
 
 **【图X-8位置：协调器工作流程图】**
-> *图X-8 协调器决策流程*
-> 
+
+> _图X-8 协调器决策流程_
+>
 > 说明：绘制消息接收→冲突检测→冲突解决→决策输出的流程图
 
 ---
@@ -656,14 +685,14 @@ $$D = \langle \text{control\_action}, \text{system\_state}, \text{conflict\_reso
 
 **表X-2 实验环境配置**
 
-| 项目 | 配置 |
-|------|------|
-| 发动机模型 | 6缸低速船用柴油机（缸径620mm，行程2658mm） |
-| 仿真步长 | 1秒 |
-| 仿真时长 | 100秒 |
-| 故障类型 | 喷油正时提前2度（阶跃故障，25秒发生） |
-| DQN参数 | 隐藏层[128, 64]，γ=0.99，ε₀=1.0，ε_min=0.05 |
-| 自适应阈值参数 | 窗口W=100，灵敏度k=3 |
+| 项目           | 配置                                        |
+| -------------- | ------------------------------------------- |
+| 发动机模型     | 6缸低速船用柴油机（缸径620mm，行程2658mm）  |
+| 仿真步长       | 1秒                                         |
+| 仿真时长       | 100秒                                       |
+| 故障类型       | 喷油正时提前2度（阶跃故障，25秒发生）       |
+| DQN参数        | 隐藏层[128, 64]，γ=0.99，ε₀=1.0，ε_min=0.05 |
+| 自适应阈值参数 | 窗口W=100，灵敏度k=3                        |
 
 ### X.6.2 实验场景设计
 
@@ -672,8 +701,9 @@ $$D = \langle \text{control\_action}, \text{system\_state}, \text{conflict\_reso
 发动机在额定转速（80 rpm）稳定运行，无故障注入。
 
 **【图X-9位置：正常工况下的系统响应】**
-> *图X-9 正常工况下的Pmax监测曲线*
-> 
+
+> _图X-9 正常工况下的Pmax监测曲线_
+>
 > 说明：展示Pmax稳定在基准值附近，波动很小
 
 #### X.6.2.2 场景二：阶跃故障
@@ -681,16 +711,18 @@ $$D = \langle \text{control\_action}, \text{system\_state}, \text{conflict\_reso
 25秒时注入喷油正时提前2度的阶跃故障。
 
 **【图X-10位置：阶跃故障场景的控制响应】**
-> *图X-10 阶跃故障下的Pmax响应对比*
-> 
+
+> _图X-10 阶跃故障下的Pmax响应对比_
+>
 > 子图(a): 无控制（开环）的Pmax响应
 > 子图(b): 传统PID控制的Pmax响应
 > 子图(c): 双智能体控制的Pmax响应
 > 子图(d): 三种方法对比
 
 **【图X-11位置：控制动作历史】**
-> *图X-11 VIT调整和燃油调整历史曲线*
-> 
+
+> _图X-11 VIT调整和燃油调整历史曲线_
+>
 > 说明：展示控制智能体的动作序列
 
 #### X.6.2.3 场景三：渐变故障
@@ -698,7 +730,8 @@ $$D = \langle \text{control\_action}, \text{system\_state}, \text{conflict\_reso
 15秒开始，喷油正时以0.1度/秒的速率渐变提前。
 
 **【图X-12位置：渐变故障场景】**
-> *图X-12 渐变故障下的系统响应*
+
+> _图X-12 渐变故障下的系统响应_
 
 ### X.6.3 性能指标
 
@@ -735,42 +768,45 @@ $$J_{control} = \sum_{t} (|\Delta VIT_t| + |\Delta fuel_t|)$$
 
 **表X-3 诊断性能对比**
 
-| 指标 | 固定阈值方法 | 自适应阈值方法 | 提升 |
-|------|------------|--------------|------|
-| 检测延迟 (s) | 3.2 | 1.8 | 43.8% |
-| 检测准确率 (%) | 85.3 | 93.7 | +8.4% |
-| 假阳性率 (%) | 8.2 | 3.5 | -57.3% |
+| 指标           | 固定阈值方法 | 自适应阈值方法 | 提升   |
+| -------------- | ------------ | -------------- | ------ |
+| 检测延迟 (s)   | 3.2          | 1.8            | 43.8%  |
+| 检测准确率 (%) | 85.3         | 93.7           | +8.4%  |
+| 假阳性率 (%)   | 8.2          | 3.5            | -57.3% |
 
 **【图X-13位置：诊断性能对比图】**
-> *图X-13 诊断性能雷达图*
+
+> _图X-13 诊断性能雷达图_
 
 #### X.6.4.2 控制性能对比
 
 **表X-4 控制性能对比**
 
-| 指标 | 无控制 | PID控制 | 双智能体 | 相对PID提升 |
-|------|-------|--------|---------|------------|
-| 最大超调量 (bar) | 28.5 | 12.3 | 8.7 | 29.3% |
-| 稳态误差 (bar) | 25.0 | 4.2 | 2.1 | 50.0% |
-| 调节时间 (s) | - | 18.5 | 12.3 | 33.5% |
-| 控制代价 | - | 45.2 | 38.7 | 14.4% |
+| 指标             | 无控制 | PID控制 | 双智能体 | 相对PID提升 |
+| ---------------- | ------ | ------- | -------- | ----------- |
+| 最大超调量 (bar) | 28.5   | 12.3    | 8.7      | 29.3%       |
+| 稳态误差 (bar)   | 25.0   | 4.2     | 2.1      | 50.0%       |
+| 调节时间 (s)     | -      | 18.5    | 12.3     | 33.5%       |
+| 控制代价         | -      | 45.2    | 38.7     | 14.4%       |
 
 **【图X-14位置：控制性能对比图】**
-> *图X-14 控制性能柱状图对比*
+
+> _图X-14 控制性能柱状图对比_
 
 #### X.6.4.3 协调机制分析
 
 **表X-5 冲突解决统计**
 
-| 冲突类型 | 发生次数 | 成功解决次数 | 解决率 |
-|---------|---------|-------------|-------|
-| 诊断-控制不匹配 | 15 | 15 | 100% |
-| 安全-性能权衡 | 8 | 8 | 100% |
-| 总计 | 23 | 23 | 100% |
+| 冲突类型        | 发生次数 | 成功解决次数 | 解决率 |
+| --------------- | -------- | ------------ | ------ |
+| 诊断-控制不匹配 | 15       | 15           | 100%   |
+| 安全-性能权衡   | 8        | 8            | 100%   |
+| 总计            | 23       | 23           | 100%   |
 
 **【图X-15位置：系统状态转换时间线】**
-> *图X-15 系统状态变化时间线*
-> 
+
+> _图X-15 系统状态变化时间线_
+>
 > 说明：展示NORMAL→WARNING→CRITICAL→恢复NORMAL的过程
 
 ### X.6.5 消融实验
@@ -779,16 +815,17 @@ $$J_{control} = \sum_{t} (|\Delta VIT_t| + |\Delta fuel_t|)$$
 
 **表X-6 消融实验结果**
 
-| 配置 | 检测延迟 | 稳态误差 | 超调量 |
-|------|---------|---------|-------|
-| 完整系统 | 1.8s | 2.1bar | 8.7bar |
-| 去除自适应阈值 | 3.0s | 2.3bar | 9.2bar |
-| 去除集成分类器（仅RF） | 2.1s | 2.4bar | 8.9bar |
-| 去除DQN（仅PID） | 1.9s | 4.2bar | 12.3bar |
-| 去除协调器 | 2.5s | 3.8bar | 14.2bar |
+| 配置                   | 检测延迟 | 稳态误差 | 超调量  |
+| ---------------------- | -------- | -------- | ------- |
+| 完整系统               | 1.8s     | 2.1bar   | 8.7bar  |
+| 去除自适应阈值         | 3.0s     | 2.3bar   | 9.2bar  |
+| 去除集成分类器（仅RF） | 2.1s     | 2.4bar   | 8.9bar  |
+| 去除DQN（仅PID）       | 1.9s     | 4.2bar   | 12.3bar |
+| 去除协调器             | 2.5s     | 3.8bar   | 14.2bar |
 
 **【图X-16位置：消融实验结果图】**
-> *图X-16 消融实验对比*
+
+> _图X-16 消融实验对比_
 
 ---
 
@@ -839,22 +876,22 @@ $$J_{control} = \sum_{t} (|\Delta VIT_t| + |\Delta fuel_t|)$$
 ```python
 class Agent(ABC):
     """智能体抽象基类"""
-    
+
     @abstractmethod
     def perceive(self, observation: Dict) -> None:
         """感知环境观测"""
         pass
-    
+
     @abstractmethod
     def decide(self) -> Any:
         """决策动作"""
         pass
-    
+
     @abstractmethod
     def act(self, action: Any) -> None:
         """执行动作"""
         pass
-    
+
     @abstractmethod
     def learn(self, reward: float) -> None:
         """学习更新"""
@@ -878,18 +915,18 @@ class MessageType(Enum):
 
 **表B-1 DQN超参数设置**
 
-| 参数名称 | 符号 | 取值 | 说明 |
-|---------|-----|------|------|
-| 学习率 | $\alpha$ | 0.001 | Adam优化器 |
-| 折扣因子 | $\gamma$ | 0.99 | 长期回报权重 |
-| 回放缓冲区大小 | $N$ | 10000 | 存储转移元组 |
-| 批量大小 | $B$ | 64 | 每次更新采样数 |
-| 目标网络更新频率 | - | 每100步 | 硬更新 |
-| 初始探索率 | $\epsilon_0$ | 1.0 | 完全随机探索 |
-| 最终探索率 | $\epsilon_{min}$ | 0.05 | 保留5%探索 |
-| 探索率衰减 | $\rho$ | 0.995 | 指数衰减 |
-| 隐藏层1神经元数 | - | 128 | 第一隐藏层 |
-| 隐藏层2神经元数 | - | 64 | 第二隐藏层 |
+| 参数名称         | 符号             | 取值    | 说明           |
+| ---------------- | ---------------- | ------- | -------------- |
+| 学习率           | $\alpha$         | 0.001   | Adam优化器     |
+| 折扣因子         | $\gamma$         | 0.99    | 长期回报权重   |
+| 回放缓冲区大小   | $N$              | 10000   | 存储转移元组   |
+| 批量大小         | $B$              | 64      | 每次更新采样数 |
+| 目标网络更新频率 | -                | 每100步 | 硬更新         |
+| 初始探索率       | $\epsilon_0$     | 1.0     | 完全随机探索   |
+| 最终探索率       | $\epsilon_{min}$ | 0.05    | 保留5%探索     |
+| 探索率衰减       | $\rho$           | 0.995   | 指数衰减       |
+| 隐藏层1神经元数  | -                | 128     | 第一隐藏层     |
+| 隐藏层2神经元数  | -                | 64      | 第二隐藏层     |
 
 ---
 
