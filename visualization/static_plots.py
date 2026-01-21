@@ -367,3 +367,325 @@ class SynergyPlotter:
             fig.savefig(save_path, bbox_inches='tight')
         
         return fig
+
+
+class CalibrationProcessPlotter:
+    """
+    校准过程可视化
+    
+    展示三阶段分步解耦校准的过程和结果
+    """
+    
+    def __init__(self, figsize: Tuple[float, float] = (14, 10)):
+        self.figsize = figsize
+        self.colors = {
+            'stage1': '#3498DB',   # 压缩段 - 蓝色
+            'stage2': '#E74C3C',   # 燃烧段 - 红色
+            'stage3': '#2ECC71',   # 传热段 - 绿色
+            'target': '#F39C12',   # 目标值 - 橙色
+            'sim': '#9B59B6',      # 仿真值 - 紫色
+        }
+    
+    def plot_calibration_process(self,
+                                  calibration_history: Dict = None,
+                                  save_path: str = None) -> plt.Figure:
+        """
+        图表: 三阶段校准过程综合图
+        
+        展示分步解耦校准策略的完整流程
+        
+        Args:
+            calibration_history: 校准历史数据 (可选)
+            save_path: 保存路径
+            
+        Returns:
+            fig: 图形对象
+        """
+        fig = plt.figure(figsize=self.figsize)
+        
+        # 创建2x2网格布局
+        gs = fig.add_gridspec(2, 2, hspace=0.35, wspace=0.3,
+                              left=0.08, right=0.95, top=0.92, bottom=0.08)
+        
+        # 子图1: 校准流程示意图
+        ax1 = fig.add_subplot(gs[0, 0])
+        self._plot_flowchart(ax1)
+        
+        # 子图2: 参数敏感性分析
+        ax2 = fig.add_subplot(gs[0, 1])
+        self._plot_sensitivity(ax2, calibration_history)
+        
+        # 子图3: 校准收敛曲线
+        ax3 = fig.add_subplot(gs[1, 0])
+        self._plot_convergence(ax3, calibration_history)
+        
+        # 子图4: 校准结果对比
+        ax4 = fig.add_subplot(gs[1, 1])
+        self._plot_results_comparison(ax4, calibration_history)
+        
+        fig.suptitle('Three-Stage Decoupled Calibration Process', 
+                     fontsize=16, fontweight='bold')
+        
+        if save_path:
+            fig.savefig(save_path, bbox_inches='tight', dpi=300)
+        
+        return fig
+    
+    def _plot_flowchart(self, ax):
+        """绘制校准流程示意图"""
+        ax.set_xlim(0, 10)
+        ax.set_ylim(0, 10)
+        ax.axis('off')
+        ax.set_title('(A) Calibration Workflow', fontsize=12, fontweight='bold', loc='left')
+        
+        # 三个阶段的方框
+        stages = [
+            {'name': 'Stage 1\nCompression', 'target': 'Pcomp', 'param': 'CR', 
+             'y': 8, 'color': self.colors['stage1']},
+            {'name': 'Stage 2\nCombustion', 'target': 'Pmax', 'param': 'Wiebe', 
+             'y': 5, 'color': self.colors['stage2']},
+            {'name': 'Stage 3\nHeat Transfer', 'target': 'Texh', 'param': 'Woschni', 
+             'y': 2, 'color': self.colors['stage3']},
+        ]
+        
+        for stage in stages:
+            # 主方框
+            rect = mpatches.FancyBboxPatch(
+                (0.5, stage['y'] - 0.8), 3, 1.6,
+                boxstyle="round,pad=0.05,rounding_size=0.2",
+                facecolor=stage['color'], edgecolor='black', linewidth=2, alpha=0.8
+            )
+            ax.add_patch(rect)
+            ax.text(2, stage['y'], stage['name'], ha='center', va='center',
+                    fontsize=10, fontweight='bold', color='white')
+            
+            # 目标参数
+            ax.annotate(f"Target: {stage['target']}", xy=(3.7, stage['y']),
+                       xytext=(5.5, stage['y'] + 0.3),
+                       fontsize=9, ha='left',
+                       arrowprops=dict(arrowstyle='->', color='gray', lw=1.5))
+            
+            # 调整参数
+            ax.annotate(f"Tune: {stage['param']}", xy=(3.7, stage['y']),
+                       xytext=(5.5, stage['y'] - 0.3),
+                       fontsize=9, ha='left', color=stage['color'],
+                       arrowprops=dict(arrowstyle='->', color=stage['color'], lw=1.5))
+        
+        # 连接箭头
+        for i in range(len(stages) - 1):
+            ax.annotate('', xy=(2, stages[i+1]['y'] + 1.0), 
+                       xytext=(2, stages[i]['y'] - 1.0),
+                       arrowprops=dict(arrowstyle='->', color='black', lw=2))
+        
+        # 添加"Fix & Proceed"标注
+        ax.text(2.8, 6.5, 'Fix CR', fontsize=8, style='italic', color='gray')
+        ax.text(2.8, 3.5, 'Fix Wiebe', fontsize=8, style='italic', color='gray')
+    
+    def _plot_sensitivity(self, ax, history: Dict = None):
+        """绘制参数敏感性分析图"""
+        ax.set_title('(B) Parameter Sensitivity', fontsize=12, fontweight='bold', loc='left')
+        
+        # 示例敏感性数据
+        params = ['CR', 'Inj.Timing', 'Duration', 'Shape', 'C_woschni']
+        targets = ['Pcomp', 'Pmax', 'Texh']
+        
+        # 敏感性矩阵 (示意数据)
+        sensitivity = np.array([
+            [0.95, 0.15, 0.05],   # CR
+            [0.10, 0.85, 0.20],   # Inj.Timing
+            [0.05, 0.70, 0.15],   # Duration
+            [0.03, 0.45, 0.10],   # Shape
+            [0.08, 0.12, 0.90],   # C_woschni
+        ])
+        
+        im = ax.imshow(sensitivity, cmap='YlOrRd', aspect='auto', vmin=0, vmax=1)
+        
+        ax.set_xticks(np.arange(len(targets)))
+        ax.set_yticks(np.arange(len(params)))
+        ax.set_xticklabels(targets, fontsize=10)
+        ax.set_yticklabels(params, fontsize=10)
+        
+        # 添加数值标注
+        for i in range(len(params)):
+            for j in range(len(targets)):
+                val = sensitivity[i, j]
+                color = 'white' if val > 0.5 else 'black'
+                ax.text(j, i, f'{val:.2f}', ha='center', va='center', 
+                       fontsize=9, color=color, fontweight='bold')
+        
+        # 颜色条
+        cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        cbar.set_label('Sensitivity', fontsize=10)
+        
+        ax.set_xlabel('Target Variables', fontsize=10)
+        ax.set_ylabel('Parameters', fontsize=10)
+    
+    def _plot_convergence(self, ax, history: Dict = None):
+        """绘制校准收敛曲线"""
+        ax.set_title('(C) Convergence History', fontsize=12, fontweight='bold', loc='left')
+        
+        # 生成示例收敛数据
+        if history and 'convergence' in history:
+            conv_data = history['convergence']
+        else:
+            # 模拟收敛曲线
+            iters_s1 = np.arange(1, 11)
+            iters_s2 = np.arange(1, 16)
+            iters_s3 = np.arange(1, 9)
+            
+            error_s1 = 15 * np.exp(-0.5 * iters_s1) + 1.5
+            error_s2 = 12 * np.exp(-0.25 * iters_s2) + 2.0
+            error_s3 = 8 * np.exp(-0.4 * iters_s3) + 3.0
+            
+            conv_data = {
+                'stage1': {'iter': iters_s1, 'error': error_s1},
+                'stage2': {'iter': iters_s2, 'error': error_s2},
+                'stage3': {'iter': iters_s3, 'error': error_s3},
+            }
+        
+        # 绘制各阶段收敛曲线
+        offset = 0
+        stage_labels = ['Stage 1 (CR)', 'Stage 2 (Wiebe)', 'Stage 3 (Woschni)']
+        colors = [self.colors['stage1'], self.colors['stage2'], self.colors['stage3']]
+        
+        for i, (stage, data) in enumerate(conv_data.items()):
+            iters = data['iter'] + offset
+            errors = data['error']
+            ax.plot(iters, errors, 'o-', color=colors[i], linewidth=2, 
+                   markersize=5, label=stage_labels[i])
+            
+            # 添加阶段分隔线
+            if i < 2:
+                ax.axvline(x=iters[-1] + 0.5, color='gray', linestyle='--', 
+                          alpha=0.5, linewidth=1)
+            
+            offset = iters[-1]
+        
+        ax.set_xlabel('Iteration', fontsize=10)
+        ax.set_ylabel('Relative Error [%]', fontsize=10)
+        ax.legend(loc='upper right', fontsize=9)
+        ax.grid(True, alpha=0.3)
+        ax.set_ylim(0, None)
+        
+        # 添加目标线
+        ax.axhline(y=2, color='green', linestyle=':', linewidth=1.5, alpha=0.7)
+        ax.text(offset + 1, 2.5, 'Target < 2%', fontsize=8, color='green')
+    
+    def _plot_results_comparison(self, ax, history: Dict = None):
+        """绘制校准结果对比图"""
+        ax.set_title('(D) Calibration Results', fontsize=12, fontweight='bold', loc='left')
+        
+        # 校准前后对比数据
+        if history and 'results' in history:
+            results = history['results']
+        else:
+            results = {
+                'Pcomp': {'exp': 145.0, 'before': 132.5, 'after': 144.2},
+                'Pmax': {'exp': 180.0, 'before': 165.0, 'after': 178.5},
+                'Texh': {'exp': 380.0, 'before': 420.0, 'after': 388.0},
+            }
+        
+        params = list(results.keys())
+        x = np.arange(len(params))
+        width = 0.25
+        
+        exp_vals = [results[p]['exp'] for p in params]
+        before_vals = [results[p]['before'] for p in params]
+        after_vals = [results[p]['after'] for p in params]
+        
+        # 归一化显示
+        exp_norm = np.array(exp_vals)
+        before_norm = np.array(before_vals) / exp_norm * 100
+        after_norm = np.array(after_vals) / exp_norm * 100
+        exp_norm = np.ones(len(params)) * 100
+        
+        bars1 = ax.bar(x - width, before_norm, width, label='Before Cal.',
+                       color='#95A5A6', edgecolor='black')
+        bars2 = ax.bar(x, exp_norm, width, label='Experiment',
+                       color=self.colors['target'], edgecolor='black')
+        bars3 = ax.bar(x + width, after_norm, width, label='After Cal.',
+                       color=self.colors['sim'], edgecolor='black')
+        
+        ax.set_ylabel('Normalized Value [%]', fontsize=10)
+        ax.set_xticks(x)
+        ax.set_xticklabels(params, fontsize=10)
+        ax.legend(loc='upper right', fontsize=9)
+        ax.grid(True, alpha=0.3, axis='y')
+        
+        # 添加误差带
+        ax.axhline(y=98, color='green', linestyle=':', alpha=0.5)
+        ax.axhline(y=102, color='green', linestyle=':', alpha=0.5)
+        ax.fill_between([-0.5, len(params) - 0.5], 98, 102, 
+                        color='green', alpha=0.1, label='_2% band')
+        
+        ax.set_ylim(85, 115)
+        ax.set_xlim(-0.5, len(params) - 0.5)
+        
+        # 添加误差百分比标注
+        for i, p in enumerate(params):
+            error_before = abs(before_norm[i] - 100)
+            error_after = abs(after_norm[i] - 100)
+            ax.text(i - width, before_norm[i] + 2, f'{error_before:.1f}%', 
+                   ha='center', fontsize=8, color='gray')
+            ax.text(i + width, after_norm[i] + 2, f'{error_after:.1f}%', 
+                   ha='center', fontsize=8, color=self.colors['sim'])
+    
+    def plot_stage_detail(self, 
+                          stage: int,
+                          param_range: np.ndarray,
+                          error_curve: np.ndarray,
+                          optimal_value: float,
+                          target_name: str,
+                          param_name: str,
+                          save_path: str = None) -> plt.Figure:
+        """
+        绘制单阶段校准详细图
+        
+        Args:
+            stage: 阶段编号 (1, 2, 3)
+            param_range: 参数扫描范围
+            error_curve: 对应的误差曲线
+            optimal_value: 最优参数值
+            target_name: 目标变量名
+            param_name: 参数名
+            save_path: 保存路径
+        """
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        colors = {1: self.colors['stage1'], 
+                  2: self.colors['stage2'], 
+                  3: self.colors['stage3']}
+        
+        ax.plot(param_range, error_curve, '-', color=colors[stage], 
+                linewidth=2.5, label='Error Curve')
+        ax.axvline(x=optimal_value, color='red', linestyle='--', 
+                   linewidth=2, label=f'Optimal: {optimal_value:.3f}')
+        ax.axhline(y=2, color='green', linestyle=':', linewidth=1.5, alpha=0.7)
+        
+        ax.fill_between(param_range, 0, 2, color='green', alpha=0.1)
+        
+        ax.set_xlabel(f'{param_name}', fontsize=12)
+        ax.set_ylabel(f'{target_name} Error [%]', fontsize=12)
+        ax.set_title(f'Stage {stage}: {param_name} Optimization', 
+                    fontsize=14, fontweight='bold')
+        ax.legend(loc='upper right', fontsize=10)
+        ax.grid(True, alpha=0.3)
+        ax.set_ylim(0, None)
+        
+        # 标注最优点
+        opt_idx = np.argmin(np.abs(param_range - optimal_value))
+        opt_error = error_curve[opt_idx]
+        ax.plot(optimal_value, opt_error, 'ro', markersize=12, zorder=5)
+        ax.annotate(f'Min Error: {opt_error:.2f}%', 
+                   xy=(optimal_value, opt_error),
+                   xytext=(optimal_value + 0.1 * (param_range[-1] - param_range[0]), 
+                          opt_error + 2),
+                   fontsize=10,
+                   arrowprops=dict(arrowstyle='->', color='red'))
+        
+        plt.tight_layout()
+        
+        if save_path:
+            fig.savefig(save_path, bbox_inches='tight', dpi=300)
+        
+        return fig

@@ -11,6 +11,11 @@ from matplotlib.patches import Circle
 from typing import Dict, Callable, Optional
 import warnings
 
+# 设置中文字体，解决乱码问题
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['figure.dpi'] = 100
+
 
 class InteractiveDashboard:
     """
@@ -48,42 +53,45 @@ class InteractiveDashboard:
     
     def create_layout(self):
         """创建仪表盘布局"""
-        self.fig = plt.figure(figsize=(16, 10))
+        self.fig = plt.figure(figsize=(18, 11))
         self.fig.suptitle('船用柴油机零维仿真与控诊协同仪表盘', 
-                          fontsize=16, fontweight='bold')
+                          fontsize=18, fontweight='bold', y=0.98)
         
-        # 网格布局: 3列
+        # 网格布局: 3列，增加间距避免重叠
         gs = self.fig.add_gridspec(3, 4, width_ratios=[1, 2, 2, 1.5],
-                                    height_ratios=[1, 1, 0.3],
-                                    hspace=0.3, wspace=0.3)
+                                    height_ratios=[1, 1, 0.25],
+                                    hspace=0.4, wspace=0.4,
+                                    left=0.06, right=0.96, top=0.92, bottom=0.08)
         
         # 左侧面板: 控制输入
         self.axes['controls'] = self.fig.add_subplot(gs[0:2, 0])
-        self.axes['controls'].set_title('控制输入', fontweight='bold')
+        self.axes['controls'].set_title('控制输入', fontsize=12, fontweight='bold', pad=10)
         self.axes['controls'].axis('off')
         
         # 中间面板: P-V图
         self.axes['pv'] = self.fig.add_subplot(gs[0, 1:3])
-        self.axes['pv'].set_title('P-V 示功图', fontweight='bold')
-        self.axes['pv'].set_xlabel('容积 [L]')
-        self.axes['pv'].set_ylabel('压力 [bar]')
+        self.axes['pv'].set_title('P-V 示功图', fontsize=12, fontweight='bold', pad=10)
+        self.axes['pv'].set_xlabel('容积 [L]', fontsize=10)
+        self.axes['pv'].set_ylabel('压力 [bar]', fontsize=10)
+        self.axes['pv'].tick_params(labelsize=9)
         self.axes['pv'].grid(True, alpha=0.3)
         
         # 中间面板: 放热率
         self.axes['hr'] = self.fig.add_subplot(gs[1, 1:3])
-        self.axes['hr'].set_title('燃烧放热率曲线', fontweight='bold')
-        self.axes['hr'].set_xlabel('曲轴转角 [°CA ATDC]')
-        self.axes['hr'].set_ylabel('放热率 [kJ/°CA]')
+        self.axes['hr'].set_title('燃烧放热率曲线', fontsize=12, fontweight='bold', pad=10)
+        self.axes['hr'].set_xlabel('曲轴转角 [deg CA ATDC]', fontsize=10)
+        self.axes['hr'].set_ylabel('放热率 [kJ/deg CA]', fontsize=10)
+        self.axes['hr'].tick_params(labelsize=9)
         self.axes['hr'].grid(True, alpha=0.3)
         
         # 右侧面板: 诊断状态
         self.axes['status'] = self.fig.add_subplot(gs[0, 3])
-        self.axes['status'].set_title('诊断状态', fontweight='bold')
+        self.axes['status'].set_title('诊断状态', fontsize=12, fontweight='bold', pad=10)
         self.axes['status'].axis('off')
         
         # 右侧面板: 数值显示
         self.axes['values'] = self.fig.add_subplot(gs[1, 3])
-        self.axes['values'].set_title('关键参数', fontweight='bold')
+        self.axes['values'].set_title('关键参数', fontsize=12, fontweight='bold', pad=10)
         self.axes['values'].axis('off')
         
         # 底部: 滑块区域
@@ -95,10 +103,15 @@ class InteractiveDashboard:
             ax_rpm, 'RPM', 40, 120, valinit=80,
             valstep=5, color='steelblue'
         )
+        self.sliders['rpm'].label.set_fontsize(10)
+        self.sliders['rpm'].valtext.set_fontsize(10)
+        
         self.sliders['fault'] = Slider(
-            ax_fault, '故障程度 [%]', 0, 100, valinit=0,
+            ax_fault, '故障程度[%]', 0, 100, valinit=0,
             valstep=5, color='coral'
         )
+        self.sliders['fault'].label.set_fontsize(10)
+        self.sliders['fault'].valtext.set_fontsize(10)
         
         # 绑定事件
         self.sliders['rpm'].on_changed(self._on_rpm_change)
@@ -122,20 +135,20 @@ class InteractiveDashboard:
         
         # 状态指示灯
         self.artists['status_light'] = Circle(
-            (0.5, 0.5), 0.3, color='green',
+            (0.5, 0.55), 0.25, color='green',
             transform=self.axes['status'].transAxes
         )
         self.axes['status'].add_patch(self.artists['status_light'])
         self.artists['status_text'] = self.axes['status'].text(
-            0.5, 0.1, '正常', ha='center', fontsize=14,
-            transform=self.axes['status'].transAxes
+            0.5, 0.15, '正常', ha='center', va='center', fontsize=13,
+            fontweight='bold', transform=self.axes['status'].transAxes
         )
         
         # 数值显示
         self.artists['values_text'] = self.axes['values'].text(
-            0.1, 0.8, '', fontsize=11, family='monospace',
+            0.08, 0.85, '', fontsize=10, family='monospace',
             transform=self.axes['values'].transAxes,
-            verticalalignment='top'
+            verticalalignment='top', linespacing=1.4
         )
     
     def _on_rpm_change(self, val):
@@ -238,13 +251,13 @@ class InteractiveDashboard:
         if self.controller and self.controller.control_history:
             vit_adj = self.controller.control_history[-1].vit_adjustment
         
-        text = f"Pmax:   {Pmax:6.1f} bar\n"
-        text += f"Pcomp:  {Pcomp:6.1f} bar\n"
-        text += f"排温:   {Texh:6.0f} °C\n"
-        text += f"─" * 18 + "\n"
-        text += f"VIT调整: {vit_adj:+5.1f} °\n"
-        text += f"RPM:    {self.current_rpm:6.1f}\n"
-        text += f"故障:   {self.current_fault:6.0f} %"
+        text = f"Pmax:  {Pmax:6.1f} bar\n"
+        text += f"Pcomp: {Pcomp:6.1f} bar\n"
+        text += f"Texh:  {Texh:6.0f} C\n"
+        text += "-" * 15 + "\n"
+        text += f"VIT:   {vit_adj:+5.1f} deg\n"
+        text += f"RPM:   {self.current_rpm:6.1f}\n"
+        text += f"Fault: {self.current_fault:5.0f} %"
         
         self.artists['values_text'].set_text(text)
     

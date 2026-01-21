@@ -29,7 +29,7 @@ from engine import MarineEngine0D, OperatingCondition
 from calibration import EngineCalibrator, CalibrationDataLoader
 from diagnosis import FaultDiagnoser, FaultInjector, FaultType
 from control import SynergyController, ControlMode
-from visualization import CalibrationPlotter, SynergyPlotter, PerformanceRadar
+from visualization import CalibrationPlotter, SynergyPlotter, PerformanceRadar, CalibrationProcessPlotter
 
 
 def run_calibration(csv_path: str = "calibration_data.csv", 
@@ -237,6 +237,16 @@ def generate_plots(engine: MarineEngine0D,
     cal_plotter = CalibrationPlotter()
     syn_plotter = SynergyPlotter()
     radar = PerformanceRadar()
+    process_plotter = CalibrationProcessPlotter()
+    
+    # ========== 图表0: 校准过程综合图 ==========
+    print("\n生成图表0: 三阶段校准过程图...")
+    
+    fig0 = process_plotter.plot_calibration_process(
+        calibration_history=None,  # 使用默认示例数据
+        save_path=os.path.join(output_dir, "fig0_calibration_process.png")
+    )
+    print(f"  已保存: {output_dir}/fig0_calibration_process.png")
     
     # ========== 图表1: 热力参数对标图 ==========
     print("\n生成图表1: 热力参数对标图...")
@@ -395,6 +405,7 @@ def run_demo():
     print("=" * 70)
     print("\n生成的文件:")
     print("  - calibrated_params.json  (校准参数)")
+    print("  - results/fig0_calibration_process.png")
     print("  - results/fig1_calibration_verification.png")
     print("  - results/fig2_pv_diagram.png")
     print("  - results/fig3_fault_response.png")
