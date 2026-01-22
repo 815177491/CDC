@@ -74,17 +74,17 @@ class MessageType(Enum):
     DIAGNOSIS_REQUEST = auto()      # 请求诊断
     DIAGNOSIS_RESULT = auto()       # 诊断结果
     FAULT_ALERT = auto()            # 故障警报
-    
+
     # 控制相关
     CONTROL_REQUEST = auto()        # 请求控制动作
     CONTROL_ACTION = auto()         # 控制动作输出
     CONTROL_FEEDBACK = auto()       # 控制效果反馈
-    
+
     # 协调相关
     STATE_UPDATE = auto()           # 状态更新
     MODE_CHANGE = auto()            # 模式切换
     CONFLICT_RESOLUTION = auto()    # 冲突解决
-    
+
     # 学习相关
     EXPERIENCE = auto()             # 经验数据 (用于在线学习)
     MODEL_UPDATE = auto()           # 模型更新通知
@@ -104,39 +104,39 @@ class Agent(ABC):
     智能体抽象基类
     遵循 Perceive -> Decide -> Act -> Learn 循环
     """
-    
+
     def __init__(self, name: str, engine=None):
         self.name = name
         self.engine = engine
         self.state = AgentState(name=name)
-        
+
         # 消息队列
         self.inbox: List[AgentMessage] = []
         self.outbox: List[AgentMessage] = []
-        
+
         # 经验缓冲区 (用于学习)
         self.experience_buffer: List[Dict] = []
         self.buffer_size = 10000
-        
+
         # 学习参数
         self.learning_enabled = True
         self.learning_rate = 0.001
-    
+
     @abstractmethod
     def perceive(self, observation: Dict[str, Any]) -> Dict[str, Any]:
         """感知环境，处理原始观测数据"""
         pass
-    
+
     @abstractmethod
     def decide(self, perception: Dict[str, Any]) -> Any:
         """基于感知结果进行决策"""
         pass
-    
+
     @abstractmethod
     def act(self, decision: Any) -> Dict[str, Any]:
         """执行决策动作"""
         pass
-    
+
     def learn(self, experience: Dict[str, Any]) -> None:
         """从经验中在线学习"""
         pass
@@ -169,14 +169,14 @@ $$
 
 每个仿真步返回的观测数据包含：
 
-| 参数名 | 符号 | 单位 | 说明 |
-|--------|------|------|------|
-| 最高爆发压力 | $P_{max}$ | bar | 燃烧峰值压力 |
-| 压缩终点压力 | $P_{comp}$ | bar | 压缩上止点压力 |
-| 排气温度 | $T_{exh}$ | °C | 缸内排气温度 |
-| 转速 | $n$ | rpm | 发动机转速 |
-| 负荷 | $L$ | % | 相对负荷 |
-| 喷油正时 | $\theta_{inj}$ | °CA | 喷油提前角 |
+| 参数名       | 符号           | 单位 | 说明           |
+| ------------ | -------------- | ---- | -------------- |
+| 最高爆发压力 | $P_{max}$      | bar  | 燃烧峰值压力   |
+| 压缩终点压力 | $P_{comp}$     | bar  | 压缩上止点压力 |
+| 排气温度     | $T_{exh}$      | °C   | 缸内排气温度   |
+| 转速         | $n$            | rpm  | 发动机转速     |
+| 负荷         | $L$            | %    | 相对负荷       |
+| 喷油正时     | $\theta_{inj}$ | °CA  | 喷油提前角     |
 
 ### 3.3 数据获取接口
 
@@ -204,6 +204,7 @@ r_i = \frac{Y_i^{meas} - Y_i^{model}}{Y_i^{model}}
 $$
 
 其中：
+
 - $Y_i^{meas}$ 为测量值
 - $Y_i^{model}$ 为模型预测值
 - $i \in \{P_{max}, P_{comp}, T_{exh}\}$
@@ -253,18 +254,19 @@ f(x_1, x_2, \ldots, x_n) = \sum_{q=0}^{2n} \Phi_q \left( \sum_{p=1}^{n} \phi_{q,
 $$
 
 其中：
+
 - $\phi_{q,p}: [0,1] \rightarrow \mathbb{R}$ 是单变量内部函数
 - $\Phi_q: \mathbb{R} \rightarrow \mathbb{R}$ 是外部函数
 
 #### 4.2.2 KAN与MLP对比
 
-| 特性 | MLP | KAN |
-|------|-----|-----|
-| 激活函数 | 固定（ReLU, Tanh等） | **可学习（B样条）** |
-| 权重位置 | 边上（连接权重） | 节点上（激活参数） |
-| 参数效率 | $O(n^2)$ | $O(n \cdot k)$，少100-1000倍 |
-| 可解释性 | 黑箱 | **可提取符号规则** |
-| 物理发现 | 困难 | 自动发现物理关系 |
+| 特性     | MLP                  | KAN                          |
+| -------- | -------------------- | ---------------------------- |
+| 激活函数 | 固定（ReLU, Tanh等） | **可学习（B样条）**          |
+| 权重位置 | 边上（连接权重）     | 节点上（激活参数）           |
+| 参数效率 | $O(n^2)$             | $O(n \cdot k)$，少100-1000倍 |
+| 可解释性 | 黑箱                 | **可提取符号规则**           |
+| 物理发现 | 困难                 | 自动发现物理关系             |
 
 #### 4.2.3 B样条基函数
 
@@ -305,6 +307,7 @@ rules = [
 PINN将柴油机热力学方程作为软约束嵌入神经网络训练：
 
 **1. 压缩多变方程**：
+
 $$
 \frac{P_{comp}}{P_1} = \left( \frac{V_1}{V_{comp}} \right)^n = r_c^n
 $$
@@ -312,11 +315,13 @@ $$
 其中 $r_c$ 为压缩比，$n$ 为多变指数（典型值1.35）。
 
 **2. 维贝燃烧模型**：
+
 $$
 \frac{dQ_b}{d\theta} = \frac{a \cdot m \cdot Q_{total}}{\Delta\theta} \left( \frac{\theta - \theta_0}{\Delta\theta} \right)^{m-1} \exp \left[ -a \left( \frac{\theta - \theta_0}{\Delta\theta} \right)^m \right]
 $$
 
 **3. 能量守恒方程**：
+
 $$
 Q_{fuel} = W_{indicated} + Q_{cooling} + Q_{exhaust} + Q_{loss}
 $$
@@ -330,11 +335,13 @@ $$
 $$
 
 **数据损失**（分类交叉熵）：
+
 $$
 \mathcal{L}_{data} = -\sum_{i=1}^{N} \sum_{c=1}^{C} y_{i,c} \log(\hat{y}_{i,c})
 $$
 
 **物理损失**（物理残差MSE）：
+
 $$
 \mathcal{L}_{physics} = \frac{1}{N} \sum_{i=1}^{N} \left[ (P_{max}^{pred} - P_{max}^{phys})^2 + (P_{comp}^{pred} - P_{comp}^{phys})^2 + (T_{exh}^{pred} - T_{exh}^{phys})^2 \right]
 $$
@@ -348,11 +355,13 @@ $$
 $$
 
 其中：
+
 - $w_{KAN} = 0.6$（KAN权重）
 - $w_{PINN} = 0.4$（PINN权重）
 - $p_{KAN}(c), p_{PINN}(c)$ 为各诊断器对故障类型$c$的置信度
 
 最终诊断结果：
+
 $$
 \hat{c} = \arg\max_c \text{score}(c)
 $$
@@ -408,6 +417,7 @@ TD-MPC2（Temporal Difference Model Predictive Control 2）是Hansen等人于ICL
 TD-MPC2的核心是一个端到端的世界模型，包含：
 
 **1. 状态编码器** $h = f_\theta(s)$：
+
 $$
 h = \text{MLP}(s) \in \mathbb{R}^{256}
 $$
@@ -415,6 +425,7 @@ $$
 将10维状态向量编码为256维潜在表示。
 
 **2. 转移预测器** $\hat{h}' = g_\theta(h, a)$：
+
 $$
 \hat{h}' = \text{MLP}([h; a])
 $$
@@ -422,11 +433,13 @@ $$
 预测下一时刻的潜在状态。
 
 **3. 奖励预测器** $\hat{r} = r_\theta(h)$：
+
 $$
 \hat{r} = \text{MLP}(h) \in \mathbb{R}
 $$
 
 **4. Q值网络** $Q_\theta(h, a)$：
+
 $$
 Q = \text{MLP}([h; a]) \in \mathbb{R}^{|A|}
 $$
@@ -440,27 +453,32 @@ $$
 1. **初始化**：动作分布 $\mu^{(0)} = 0$, $\sigma^{(0)} = 2$
 
 2. **采样**：生成 $N$ 个动作序列
-$$
-\{a_{0:H}^{(i)}\}_{i=1}^{N} \sim \mathcal{N}(\mu, \sigma)
-$$
+
+   $$
+   \{a_{0:H}^{(i)}\}_{i=1}^{N} \sim \mathcal{N}(\mu, \sigma)
+   $$
 
 3. **评估**：计算每个序列的累计回报
-$$
-R^{(i)} = \sum_{t=0}^{H-1} \gamma^t \hat{r}(h_t^{(i)}) + \gamma^H V(h_H^{(i)})
-$$
+
+   $$
+   R^{(i)} = \sum_{t=0}^{H-1} \gamma^t \hat{r}(h_t^{(i)}) + \gamma^H V(h_H^{(i)})
+   $$
 
 4. **精英选择**：保留Top-K序列
-$$
-\text{elite} = \text{argsort}(R)[-K:]
-$$
+
+   $$
+   \text{elite} = \text{argsort}(R)[-K:]
+   $$
 
 5. **分布更新**：
-$$
-\mu^{(k+1)} = \text{mean}(\{a^{(i)}\}_{i \in \text{elite}})
-$$
-$$
-\sigma^{(k+1)} = \text{std}(\{a^{(i)}\}_{i \in \text{elite}}) + 0.1
-$$
+
+   $$
+   \mu^{(k+1)} = \text{mean}(\{a^{(i)}\}_{i \in \text{elite}})
+   $$
+
+   $$
+   \sigma^{(k+1)} = \text{std}(\{a^{(i)}\}_{i \in \text{elite}}) + 0.1
+   $$
 
 6. **重复**步骤2-5共 $I$ 次迭代
 
@@ -475,16 +493,19 @@ $$
 $$
 
 **动力学损失**：
+
 $$
 \mathcal{L}_{dynamics} = \mathbb{E}_{(s,a,s') \sim \mathcal{B}} \left[ \| g_\theta(f_\theta(s), a) - f_\theta(s') \|_2^2 \right]
 $$
 
 **奖励预测损失**：
+
 $$
 \mathcal{L}_{reward} = \mathbb{E}_{(s,a,r) \sim \mathcal{B}} \left[ (r_\theta(f_\theta(s)) - r)^2 \right]
 $$
 
 **TD损失**：
+
 $$
 \mathcal{L}_{TD} = \mathbb{E}_{(s,a,r,s') \sim \mathcal{B}} \left[ (Q_\theta(s,a) - (r + \gamma \max_{a'} Q_{\bar\theta}(s', a')))^2 \right]
 $$
@@ -496,7 +517,7 @@ $$
 ```python
 state = [
     Pmax / 200.0,           # 归一化爆发压力
-    Pcomp / 200.0,          # 归一化压缩压力  
+    Pcomp / 200.0,          # 归一化压缩压力
     Texh / 500.0,           # 归一化排气温度
     r_Pmax,                 # Pmax残差
     r_Pcomp,                # Pcomp残差
@@ -526,6 +547,7 @@ r = r_{safety} - r_{efficiency} - r_{stability}
 $$
 
 **安全奖励**（最重要）：
+
 $$
 r_{safety} = \begin{cases}
 1 - \frac{|P_{max} - P_{target}|}{P_{target}} & \text{if } P_{max} \leq P_{limit} \\
@@ -536,11 +558,13 @@ $$
 其中 $P_{target} = 170$ bar，$P_{limit} = 190$ bar。
 
 **效率惩罚**：
+
 $$
 r_{efficiency} = 0.5 \cdot (1 - \text{fuel}) + 0.02 \cdot |\text{VIT}|
 $$
 
 **稳定性惩罚**：
+
 $$
 r_{stability} = \alpha \cdot \|\Delta u\|_2
 $$
@@ -577,11 +601,11 @@ class ConflictType(Enum):
 
 ### 6.3 冲突检测规则
 
-| 冲突场景 | 诊断状态 | 控制状态 | 处理策略 |
-|---------|---------|---------|---------|
-| 场景1 | CRITICAL | NORMAL | 升级为EMERGENCY模式 |
-| 场景2 | HEALTHY | 降功运行 | 逐步恢复性能 |
-| 场景3 | TIMING故障 | VIT方向错误 | 修正VIT方向 |
+| 冲突场景 | 诊断状态   | 控制状态    | 处理策略            |
+| -------- | ---------- | ----------- | ------------------- |
+| 场景1    | CRITICAL   | NORMAL      | 升级为EMERGENCY模式 |
+| 场景2    | HEALTHY    | 降功运行    | 逐步恢复性能        |
+| 场景3    | TIMING故障 | VIT方向错误 | 修正VIT方向         |
 
 ### 6.4 冲突解决算法
 
@@ -603,7 +627,7 @@ def resolve_conflict(self, conflict_type, diagnosis, control_action, observation
             r_Pmax = diagnosis.residuals.get('Pmax', 0)
             new_vit = -abs(vit) if r_Pmax > 0 else abs(vit)
             return ControlAction(vit_adjustment=new_vit)
-    
+
     elif conflict_type == ConflictType.SAFETY_PERFORMANCE_TRADEOFF:
         # 逐步恢复性能
         if observation['Pmax'] < 175:  # 安全余量充足
@@ -645,17 +669,17 @@ def auto_batch_size(device, base_batch=256):
 
 #### 7.1.2 训练超参数
 
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| 学习率 | $3 \times 10^{-4}$ | Adam优化器 |
-| 折扣因子 $\gamma$ | 0.99 | 长期奖励折扣 |
-| 软更新系数 $\tau$ | 0.005 | 目标网络更新 |
-| 规划时域 $H$ | 2 | CEM规划步数 |
-| 采样数 $N$ | 16 | CEM采样数 |
-| 精英数 $K$ | 4 | CEM精英样本数 |
-| 迭代次数 $I$ | 1 | CEM迭代次数 |
-| 探索率 $\epsilon$ | $1.0 \to 0.05$ | ε-greedy衰减 |
-| 经验池大小 | 100,000 | 回放缓冲区 |
+| 参数              | 值                 | 说明          |
+| ----------------- | ------------------ | ------------- |
+| 学习率            | $3 \times 10^{-4}$ | Adam优化器    |
+| 折扣因子 $\gamma$ | 0.99               | 长期奖励折扣  |
+| 软更新系数 $\tau$ | 0.005              | 目标网络更新  |
+| 规划时域 $H$      | 2                  | CEM规划步数   |
+| 采样数 $N$        | 16                 | CEM采样数     |
+| 精英数 $K$        | 4                  | CEM精英样本数 |
+| 迭代次数 $I$      | 1                  | CEM迭代次数   |
+| 探索率 $\epsilon$ | $1.0 \to 0.05$     | ε-greedy衰减  |
+| 经验池大小        | 100,000            | 回放缓冲区    |
 
 ### 7.2 训练循环
 
@@ -663,32 +687,32 @@ def auto_batch_size(device, base_batch=256):
 for episode in range(n_episodes):
     state = env.reset()
     episode_reward = 0
-    
+
     for step in range(max_steps):
         # 1. 感知：编码状态
         encoded_state = agent.encode_state(observation, diagnosis, vit, fuel)
-        
+
         # 2. 决策：TD-MPC2选择动作
         action_idx = agent.tdmpc2_ctrl.select_action(encoded_state, training=True)
         vit, fuel = agent.tdmpc2_ctrl.decode_action(action_idx)
-        
+
         # 3. 执行：与环境交互
         next_observation, reward, done = env.step(action_idx)
-        
+
         # 4. 存储经验
         agent.replay_buffer.push(state, action_idx, reward, next_state, done)
-        
+
         # 5. 学习：更新世界模型
         if len(agent.replay_buffer) >= batch_size:
             batch = agent.replay_buffer.sample(batch_size)
             losses = agent.tdmpc2_ctrl.update(batch)
-        
+
         episode_reward += reward
         state = next_state
-        
+
         if done:
             break
-    
+
     # 记录训练指标
     logger.log({
         'episode': episode,
@@ -710,10 +734,10 @@ $$
 class ReplayBuffer:
     def __init__(self, capacity=100000):
         self.buffer = deque(maxlen=capacity)
-    
+
     def push(self, state, action, reward, next_state, done):
         self.buffer.append(Experience(state, action, reward, next_state, done))
-    
+
     def sample(self, batch_size):
         return random.sample(self.buffer, batch_size)
 ```
@@ -728,32 +752,34 @@ class ReplayBuffer:
 
 系统实现了五种控制方法的全面对比：
 
-| 方法 | 来源 | 年份 | 类型 |
-|------|------|------|------|
-| PID | 传统控制 | - | 反馈控制 |
-| DQN | Nature | 2015 | 离散RL |
-| SAC | ICML | 2018 | 连续RL |
-| TD-MPC2 | ICLR | 2024 | 模型预测RL |
-| DPMD | arXiv | 2025 | 扩散策略RL |
+| 方法    | 来源     | 年份 | 类型       |
+| ------- | -------- | ---- | ---------- |
+| PID     | 传统控制 | -    | 反馈控制   |
+| DQN     | Nature   | 2015 | 离散RL     |
+| SAC     | ICML     | 2018 | 连续RL     |
+| TD-MPC2 | ICLR     | 2024 | 模型预测RL |
+| DPMD    | arXiv    | 2025 | 扩散策略RL |
 
 ### 8.2 实验结果
 
-| 方法 | 达标率 | 平均奖励 | 收敛轮次 | 推理时间(ms) |
-|------|--------|---------|----------|-------------|
-| PID | 0.5% | -42.3 | - | 0.1 |
-| DQN | ~70% | 5.2 | 150 | 0.8 |
-| SAC | 88.4% | 8.7 | 100 | 1.2 |
-| **TD-MPC2** | **89.7%** | **9.1** | 80 | 2.5 |
-| DPMD | 86.4% | 8.3 | 120 | 3.1 |
+| 方法        | 达标率    | 平均奖励 | 收敛轮次 | 推理时间(ms) |
+| ----------- | --------- | -------- | -------- | ------------ |
+| PID         | 0.5%      | -42.3    | -        | 0.1          |
+| DQN         | ~70%      | 5.2      | 150      | 0.8          |
+| SAC         | 88.4%     | 8.7      | 100      | 1.2          |
+| **TD-MPC2** | **89.7%** | **9.1**  | 80       | 2.5          |
+| DPMD        | 86.4%     | 8.3      | 120      | 3.1          |
 
 ### 8.3 方法对比分析
 
 **TD-MPC2优势**：
+
 1. **样本效率高**：世界模型提供额外监督信号
 2. **规划能力强**：CEM在线规划考虑多步未来
 3. **稳定性好**：TD学习提供稳定的值估计
 
 **DPMD特点**：
+
 1. **表达能力强**：扩散模型可学习复杂分布
 2. **计算开销大**：需要多步去噪
 
@@ -770,18 +796,18 @@ class ReplayBuffer:
 ```python
 def _apply_safety_constraints(self, decision, observation):
     """安全约束检查 - 不可违反"""
-    
+
     # Pmax硬约束
     if observation['Pmax'] > self.Pmax_limit:
         decision['vit'] = max(decision['vit'], -8.0)  # 强制滞后
         decision['fuel'] = min(decision['fuel'], 0.8) # 限制燃油
-    
+
     # VIT范围约束
     decision['vit'] = np.clip(decision['vit'], self.vit_min, self.vit_max)
-    
+
     # 燃油范围约束
     decision['fuel'] = np.clip(decision['fuel'], self.fuel_min, self.fuel_max)
-    
+
     return decision
 ```
 
@@ -811,6 +837,7 @@ u(t) = K_p e(t) + K_i \int_0^t e(\tau) d\tau + K_d \frac{de(t)}{dt}
 $$
 
 其中：
+
 - $e(t) = P_{max}(t) - P_{target}$
 - $K_p = 0.5$, $K_i = 0.05$, $K_d = 0.1$
 
@@ -824,32 +851,32 @@ $$
 class TDMPC2Controller:
     """
     TD-MPC2控制器 (主控制算法)
-    
+
     实现:
     - 世界模型学习状态转移和奖励预测
     - CEM规划器进行在线动作优化
     - 适配柴油机VIT/燃油控制接口
-    
+
     性能:
     - 达标率: 89.7% (五种方法中最高)
     - 来源: ICLR 2024
     """
-    
+
     def __init__(self, state_dim=10, n_vit_actions=9, n_fuel_actions=5, device='cpu'):
         # 初始化TD-MPC2算法
         from .advanced_rl_algorithms import get_advanced_algorithm
-        self.tdmpc2 = get_advanced_algorithm('TDMPC2', state_dim, 
+        self.tdmpc2 = get_advanced_algorithm('TDMPC2', state_dim,
                                               n_vit_actions * n_fuel_actions,
                                               {'device': device})
-        
+
         # 动作映射
         self.vit_actions = np.linspace(-8, 4, n_vit_actions)
         self.fuel_actions = np.linspace(0.7, 1.0, n_fuel_actions)
-    
+
     def select_action(self, state, training=True):
         """使用TD-MPC2 CEM规划选择动作"""
         return self.tdmpc2.select_action(state, explore=training)
-    
+
     def decode_action(self, action_idx):
         """解码动作索引为VIT和燃油值"""
         vit_idx = action_idx // self.n_fuel_actions
@@ -865,19 +892,19 @@ class HybridDiagnoser:
     混合故障诊断器
     KAN(60%) + PINN(40%) 投票融合
     """
-    
+
     def __init__(self, config=None):
         self.kan_weight = config.get('kan_weight', 0.6)
         self.pinn_weight = config.get('pinn_weight', 0.4)
-        
+
         self.kan = KANDiagnoser(config.get('kan_config', {}))
         self.pinn = PINNDiagnoser(config.get('pinn_config', {}))
-    
+
     def diagnose(self, features):
         """执行混合诊断"""
         kan_result = self.kan.diagnose(features)
         pinn_result = self.pinn.diagnose(features)
-        
+
         if kan_result.fault_type == pinn_result.fault_type:
             # 一致：直接输出
             confidence = max(kan_result.confidence, pinn_result.confidence)
@@ -891,7 +918,7 @@ class HybridDiagnoser:
                 )
             best_fault = max(scores, key=scores.get)
             confidence = scores[best_fault]
-        
+
         return HybridDiagnosisResult(
             fault_type=best_fault,
             confidence=confidence,
@@ -916,12 +943,12 @@ class HybridDiagnoser:
 
 ### 11.2 性能总结
 
-| 指标 | 本系统 | 传统方法 | 提升 |
-|------|--------|---------|------|
-| Pmax控制达标率 | 89.7% | 70% (DQN) | +28% |
-| 故障检测准确率 | 95%+ | 85% | +12% |
-| 响应时间 | 1.2s | 2.8s | -57% |
-| 假阳性率 | 2.1% | 5.6% | -63% |
+| 指标           | 本系统 | 传统方法  | 提升 |
+| -------------- | ------ | --------- | ---- |
+| Pmax控制达标率 | 89.7%  | 70% (DQN) | +28% |
+| 故障检测准确率 | 95%+   | 85%       | +12% |
+| 响应时间       | 1.2s   | 2.8s      | -57% |
+| 假阳性率       | 2.1%   | 5.6%      | -63% |
 
 ### 11.3 未来工作
 
@@ -936,50 +963,50 @@ class HybridDiagnoser:
 
 ## 附录A：可视化输出图片列表
 
-| 序号 | 图片文件 | 建议插入位置 | 说明 |
-|------|---------|-------------|------|
-| 1 | `visualization_output/system_architecture.png` | 1.1节 | 系统架构图 |
-| 2 | `visualization_output/agent_lifecycle.png` | 2.2节 | 智能体生命周期 |
-| 3 | `visualization_output/simulation_results.png` | 3.4节 | 仿真结果与残差 |
-| 4 | `visualization_output/diagnosis_agent_analysis.png` | 4.4节 | 诊断智能体分析 |
-| 5 | `visualization_output/training_process.png` | 5.5节 | TD-MPC2训练过程 |
-| 6 | `visualization_output/control_agent_analysis.png` | 5.5节 | 控制智能体分析 |
-| 7 | `visualization_output/performance_comparison.png` | 6.4节 | 性能对比 |
-| 8 | `results/comparison/learning_curves.png` | 7.3节 | 学习曲线对比 |
-| 9 | `results/comparison/five_method_comparison.png` | 8.3节 | 五方法对比 |
-| 10 | `results/comparison/accuracy_comparison.png` | 8.3节 | 达标率对比 |
-| 11 | `visualization_output/radar_comparison.png` | 11.2节 | 综合性能雷达图 |
+| 序号 | 图片文件                                            | 建议插入位置 | 说明            |
+| ---- | --------------------------------------------------- | ------------ | --------------- |
+| 1    | `visualization_output/system_architecture.png`      | 1.1节        | 系统架构图      |
+| 2    | `visualization_output/agent_lifecycle.png`          | 2.2节        | 智能体生命周期  |
+| 3    | `visualization_output/simulation_results.png`       | 3.4节        | 仿真结果与残差  |
+| 4    | `visualization_output/diagnosis_agent_analysis.png` | 4.4节        | 诊断智能体分析  |
+| 5    | `visualization_output/training_process.png`         | 5.5节        | TD-MPC2训练过程 |
+| 6    | `visualization_output/control_agent_analysis.png`   | 5.5节        | 控制智能体分析  |
+| 7    | `visualization_output/performance_comparison.png`   | 6.4节        | 性能对比        |
+| 8    | `results/comparison/learning_curves.png`            | 7.3节        | 学习曲线对比    |
+| 9    | `results/comparison/five_method_comparison.png`     | 8.3节        | 五方法对比      |
+| 10   | `results/comparison/accuracy_comparison.png`        | 8.3节        | 达标率对比      |
+| 11   | `visualization_output/radar_comparison.png`         | 11.2节       | 综合性能雷达图  |
 
 ---
 
 ## 附录B：符号表
 
-| 符号 | 含义 | 单位 |
-|------|------|------|
-| $P_{max}$ | 最高爆发压力 | bar |
-| $P_{comp}$ | 压缩终点压力 | bar |
-| $T_{exh}$ | 排气温度 | °C |
-| $r_i$ | 第$i$个参数的相对残差 | - |
-| $\gamma$ | 折扣因子 | - |
-| $\tau$ | 软更新系数 | - |
-| $\epsilon$ | 探索率 | - |
-| $H$ | 规划时域 | steps |
-| $Q(s,a)$ | 状态-动作值函数 | - |
-| $\phi(x)$ | KAN激活函数 | - |
-| $\mathcal{L}$ | 损失函数 | - |
+| 符号          | 含义                  | 单位  |
+| ------------- | --------------------- | ----- |
+| $P_{max}$     | 最高爆发压力          | bar   |
+| $P_{comp}$    | 压缩终点压力          | bar   |
+| $T_{exh}$     | 排气温度              | °C    |
+| $r_i$         | 第$i$个参数的相对残差 | -     |
+| $\gamma$      | 折扣因子              | -     |
+| $\tau$        | 软更新系数            | -     |
+| $\epsilon$    | 探索率                | -     |
+| $H$           | 规划时域              | steps |
+| $Q(s,a)$      | 状态-动作值函数       | -     |
+| $\phi(x)$     | KAN激活函数           | -     |
+| $\mathcal{L}$ | 损失函数              | -     |
 
 ---
 
 ## 参考文献
 
-1. Hansen, N., et al. "TD-MPC2: Scalable, Robust World Models for Continuous Control." *ICLR 2024*.
+1. Hansen, N., et al. "TD-MPC2: Scalable, Robust World Models for Continuous Control." _ICLR 2024_.
 
-2. Liu, Z., et al. "KAN: Kolmogorov-Arnold Networks." *arXiv 2024*.
+2. Liu, Z., et al. "KAN: Kolmogorov-Arnold Networks." _arXiv 2024_.
 
-3. Raissi, M., et al. "Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations." *Journal of Computational Physics, 2019*.
+3. Raissi, M., et al. "Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations." _Journal of Computational Physics, 2019_.
 
-4. Mnih, V., et al. "Human-level control through deep reinforcement learning." *Nature, 2015*.
+4. Mnih, V., et al. "Human-level control through deep reinforcement learning." _Nature, 2015_.
 
-5. Haarnoja, T., et al. "Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor." *ICML 2018*.
+5. Haarnoja, T., et al. "Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor." _ICML 2018_.
 
-6. Chi, C., et al. "Diffusion Policy: Visuomotor Policy Learning via Action Diffusion." *RSS 2023 / CoRL 2024*.
+6. Chi, C., et al. "Diffusion Policy: Visuomotor Policy Learning via Action Diffusion." _RSS 2023 / CoRL 2024_.
