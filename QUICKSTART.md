@@ -17,11 +17,13 @@ cd CDC
 ### 步骤2：安装依赖
 
 **方式A：完整安装（推荐）**
+
 ```bash
 pip install numpy scipy pandas matplotlib seaborn torch scikit-learn
 ```
 
 **方式B：最小安装**
+
 ```bash
 pip install numpy scipy pandas matplotlib seaborn
 # 注：双智能体功能会降级到规则/PID模式
@@ -36,6 +38,7 @@ python test_agents.py
 ```
 
 **输出示例**：
+
 ```
 ============================================================
 双智能体系统导入测试
@@ -66,6 +69,7 @@ python main.py --mode agents
 ```
 
 **功能**：
+
 - ✅ 完整的参数校准流程
 - ✅ 故障注入仿真（喷油正时故障）
 - ✅ 诊断智能体实时检测
@@ -73,6 +77,7 @@ python main.py --mode agents
 - ✅ 生成性能对比图表
 
 **输出文件**：
+
 - `results/agents_pmax_response.png` - Pmax响应曲线
 - `results/agents_control_history.png` - 控制动作历史
 - `results/agents_diagnosis_timeline.png` - 诊断时间线
@@ -88,6 +93,7 @@ python main.py --mode demo
 ```
 
 **功能**：
+
 - 三阶段参数校准
 - 传统PID控制
 - 静态可视化图表
@@ -103,6 +109,7 @@ python scripts/train_agents.py --episodes 500
 ```
 
 **说明**：
+
 - 离线训练DQN强化学习策略
 - 需要torch库
 - 训练数据保存到`agents/trained_dqn.pth`
@@ -118,6 +125,7 @@ python scripts/evaluate_agents.py --trials 5
 ```
 
 **输出指标**：
+
 ```
 性能对比结果
 ========================================
@@ -137,6 +145,7 @@ python scripts/evaluate_agents.py --trials 5
 ### Q1: ImportError: No module named 'torch'
 
 **解决方案**：
+
 ```bash
 pip install torch scikit-learn
 ```
@@ -155,6 +164,7 @@ pip install torch scikit-learn
 ### Q3: 内存不足
 
 **解决方案**：
+
 - 减少训练轮数：`--episodes 100`
 - 使用快速测试模式：`python test_agents.py`
 
@@ -169,7 +179,7 @@ Pmax (bar)
   |
 160|           /故障发生\
   |          /          \_____ 控制后稳定
-140|_________/                      
+140|_________/
   |  基准值
 120|
   +-----------------------------------> Time (s)
@@ -177,6 +187,7 @@ Pmax (bar)
 ```
 
 **关键指标**：
+
 - **基准值**：正常运行时的Pmax（约137 bar）
 - **故障峰值**：故障发生时的最大Pmax（无控制可达165 bar）
 - **控制后稳定值**：智能体控制后稳定在安全范围内
@@ -185,17 +196,17 @@ Pmax (bar)
 
 ### 控制动作解释
 
-| VIT调整 | 含义 | 效果 |
-|--------|------|------|
-| -8° | 喷油正时推迟8度 | 降低Pmax，提高安全性 |
-| 0° | 保持不变 | 维持当前状态 |
-| +4° | 喷油正时提前4度 | 提高Pmax，增加功率 |
+| VIT调整 | 含义            | 效果                 |
+| ------- | --------------- | -------------------- |
+| -8°     | 喷油正时推迟8度 | 降低Pmax，提高安全性 |
+| 0°      | 保持不变        | 维持当前状态         |
+| +4°     | 喷油正时提前4度 | 提高Pmax，增加功率   |
 
-| 燃油调整 | 含义 | 效果 |
-|---------|------|------|
-| -20% | 减少燃油喷射量 | 降低负荷和Pmax |
-| 0% | 保持不变 | 维持当前负荷 |
-| +10% | 增加燃油喷射量 | 提高功率输出 |
+| 燃油调整 | 含义           | 效果           |
+| -------- | -------------- | -------------- |
+| -20%     | 减少燃油喷射量 | 降低负荷和Pmax |
+| 0%       | 保持不变       | 维持当前负荷   |
+| +10%     | 增加燃油喷射量 | 提高功率输出   |
 
 ---
 

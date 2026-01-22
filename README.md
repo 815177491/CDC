@@ -79,11 +79,13 @@ CDC/
 ### 1. 安装依赖
 
 **基础依赖**（必需）：
+
 ```bash
 pip install numpy scipy pandas matplotlib seaborn
 ```
 
 **机器学习依赖**（可选，用于双智能体模式）：
+
 ```bash
 pip install torch scikit-learn
 ```
@@ -91,11 +93,13 @@ pip install torch scikit-learn
 > 💡 如果不安装ML依赖，双智能体系统会自动降级到规则诊断和PID控制。
 
 **验证安装**：
+
 ```bash
 python verify_setup.py
 ```
 
 预期输出：
+
 ```
 ============================================================
 零维船用柴油机智能控诊协同系统
@@ -110,6 +114,7 @@ python verify_setup.py
 ### 2. 运行演示
 
 **传统模式**：
+
 ```bash
 # 完整演示 (校准 + 仿真 + 可视化)
 python main.py --mode demo
@@ -122,6 +127,7 @@ python main.py --mode dashboard
 ```
 
 **🆕 双智能体模式**（推荐）：
+
 ```bash
 # 运行双智能体控诊协同系统
 python main.py --mode agents
@@ -131,6 +137,7 @@ python test_agents.py
 ```
 
 **训练与评估**：
+
 ```bash
 # 训练DQN控制智能体（需要torch）
 python scripts/train_agents.py --episodes 500
@@ -242,6 +249,7 @@ print(f"Pcomp: {engine.get_pcomp():.1f} bar")
 ### 性能提升
 
 相比传统PID控制：
+
 - ✅ 故障检测延迟降低 **43.8%**
 - ✅ 最大超调量降低 **29.3%**
 - ✅ 稳态误差降低 **50.0%**
@@ -297,23 +305,25 @@ python quick_rl_test.py
 
 **支持的算法** (详见 `docs/RL_ALGORITHMS.md`)：
 
-| 算法 | 来源 | 年份 | 特点 |
-|------|------|------|------|
-| DQN | Nature | 2015 | 基线，经验回放+目标网络 |
-| Dueling DQN | ICML | 2016 | V(s)和A(s,a)分解 |
-| PPO | OpenAI | 2017 | Clip目标，工业控制首选 |
-| SAC | ICML | 2018 | 最大熵，探索性好 |
-| TD3 | ICML | 2018 | 双Q+延迟更新 |
-| Decision Transformer | NeurIPS | 2021 | Transformer序列建模 |
-| IQL | ICLR | 2022 | 离线RL，期望分位数回归 |
+| 算法                 | 来源    | 年份 | 特点                    |
+| -------------------- | ------- | ---- | ----------------------- |
+| DQN                  | Nature  | 2015 | 基线，经验回放+目标网络 |
+| Dueling DQN          | ICML    | 2016 | V(s)和A(s,a)分解        |
+| PPO                  | OpenAI  | 2017 | Clip目标，工业控制首选  |
+| SAC                  | ICML    | 2018 | 最大熵，探索性好        |
+| TD3                  | ICML    | 2018 | 双Q+延迟更新            |
+| Decision Transformer | NeurIPS | 2021 | Transformer序列建模     |
+| IQL                  | ICLR    | 2022 | 离线RL，期望分位数回归  |
 
 **实验输出** (保存在 `experiment_results/`)：
+
 - `algorithm_comparison.png` - 算法对比图
 - `detailed_analysis.png` - 详细分析图
 - `experiment_report.txt` - 实验报告
 - `experiment_summary.json` - 结果摘要
 
 **生成的图表** (保存在 `visualization_output/`)：
+
 - `training_process.png` - DQN训练曲线（损失、Q值、探索率、奖励）
 - `simulation_results.png` - 仿真结果评估（Pmax响应、诊断置信度、控制动作）
 - `performance_comparison.png` - 性能对比（柱状图、雷达图、阶跃响应）
@@ -321,6 +331,7 @@ python quick_rl_test.py
 - `control_analysis.png` - 控制智能体分析（Q值热力图、PID vs RL、安全约束）
 
 **CSV数据文件** (保存在 `visualization_data/`)：
+
 - 22个CSV文件，包含所有图表的原始数据点
 - 详细使用说明见 `visualization_data/README_数据使用说明.md`
 - 支持Excel、Origin、MATLAB、Python等软件重新绑制
@@ -328,17 +339,20 @@ python quick_rl_test.py
 ## 技术特点
 
 **物理建模**：
+
 - 基于物理的零维热力学模型
 - 双Wiebe函数描述预混+扩散燃烧
 - Woschni关联式计算缸内传热
 - 分步解耦避免多参数优化陷阱
 
 **智能诊断**：
+
 - 残差分析法实现故障分类
 - 自适应阈值在线学习（μ±kσ动态调整）
 - 集成分类器（随机森林+规则推理）
 
 **智能控制**：
+
 - 7种现代RL算法支持（2015-2022年）
 - 算法自动对比与最优选择
 - DQN/PPO/SAC/TD3等多种策略
@@ -348,6 +362,7 @@ python quick_rl_test.py
 - PID备份保证系统可靠性
 
 **协作机制**：
+
 - 双智能体分布式决策架构
 - 消息代理实现异步通信
 - 冲突检测与解决机制
