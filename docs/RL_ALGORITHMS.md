@@ -1,51 +1,57 @@
-# 多种强化学习算法对比实验
+# 强化学习算法对比实验
 
 ## 概述
 
-本模块实现了7种现代强化学习算法的对比实验框架，涵盖了从经典方法到近年顶会顶刊的最新方法。
+本模块实现了多种强化学习算法的对比实验框架，最终选择**TD-MPC2**作为主控制算法。
 
-## 支持的算法
+## 论文正式对比方法
 
-| 算法        | 名称                         | 来源    | 年份 | 类型              | 特点                                 |
-| ----------- | ---------------------------- | ------- | ---- | ----------------- | ------------------------------------ |
-| DQN         | Deep Q-Network               | Nature  | 2015 | Value-based       | 基线方法，经验回放+目标网络          |
-| Dueling DQN | Dueling Network              | ICML    | 2016 | Value-based       | 分离V(s)和A(s,a)，提高学习效率       |
-| PPO         | Proximal Policy Optimization | OpenAI  | 2017 | Policy Gradient   | Clip目标函数，稳定性好，工业控制常用 |
-| SAC         | Soft Actor-Critic            | ICML    | 2018 | Actor-Critic      | 最大熵框架，自动温度调节，探索性好   |
-| TD3         | Twin Delayed DDPG            | ICML    | 2018 | Actor-Critic      | 双Q网络+延迟更新+目标平滑            |
-| DT          | Decision Transformer         | NeurIPS | 2021 | Sequence Modeling | 将RL转化为序列建模，使用Transformer  |
-| IQL         | Implicit Q-Learning          | ICLR    | 2022 | Offline RL        | 期望分位数回归，无需显式策略约束     |
+| 算法    | 名称                | 来源   | 年份 | 达标率 | 说明              |
+| ------- | ------------------- | ------ | ---- | ------ | ----------------- |
+| PID     | 传统PID控制         | -      | -    | 0.5%   | 传统控制基线      |
+| DQN     | Deep Q-Network      | Nature | 2015 | ~70%   | 经典RL基线        |
+| SAC     | Soft Actor-Critic   | ICML   | 2018 | 88.4%  | 最大熵框架        |
+| TD-MPC2 | TD Model Predictive Control | ICLR | 2024 | **89.7%** | **★ 推荐方法** |
+| DPMD    | Diffusion Policy Mirror Descent | - | 2025 | 86.4%  | 扩散策略+镜像下降 |
+
+## 主控制算法: TD-MPC2
+
+**TD-MPC2 (ICLR 2024)** 是本项目选择的最终强化学习方法，达标率89.7%。
+
+核心特点:
+- 世界模型学习: 学习环境动态模型
+- TD学习: 时序差分更新Q值
+- MPC规划: CEM交叉熵方法规划最优动作序列
 
 ## 文件结构
 
 ```
 agents/
-├── rl_algorithms.py          # 7种RL算法实现
-├── multi_algo_control.py     # 多算法控制智能体
-└── __init__.py               # 模块导出
+├── advanced_rl_algorithms.py  # 2024-2025新算法 (TD-MPC2, DPMD等)
+├── rl_algorithms.py           # 基础RL算法 (DQN, SAC等，对比用)
+├── multi_algo_control.py      # 多算法控制智能体
+└── __init__.py                # 模块导出
 
 experiments/
-└── rl_comparison.py          # 对比实验框架
+├── five_method_comparison.py  # 五方法对比实验
+└── rl_comparison.py           # RL算法对比框架
 
-run_rl_comparison.py          # 实验运行入口
-quick_rl_test.py              # 快速测试脚本
+run_gpu_comparison.py          # GPU加速对比实验入口
 ```
 
 ## 使用方法
 
-### 1. 运行完整对比实验
+### 1. 运行对比实验
 
-```python
-python run_rl_comparison.py
+```bash
+# 快速验证 (100 episodes)
+python run_gpu_comparison.py --quick
+
+# 完整实验 (500 episodes)
+python run_gpu_comparison.py --episodes 500
 ```
 
-### 2. 快速测试
-
-```python
-python quick_rl_test.py
-```
-
-### 3. 在代码中使用
+### 2. 在代码中使用
 
 ```python
 from agents import get_algorithm, list_algorithms, ALGORITHM_INFO

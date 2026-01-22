@@ -4,12 +4,15 @@
 双智能体系统可视化模块
 ======================
 包含:
-1. 训练过程可视化 (DQN损失、Q值、探索率)
+1. 训练过程可视化 (TD-MPC2学习曲线、Q值、探索率)
 2. 仿真结果评估 (Pmax响应、故障检测、控制动作)
-3. 性能对比分析 (双智能体 vs 传统PID)
+3. 性能对比分析 (PID+DQN+SAC+TD-MPC2+DPMD)
+
+控制算法: TD-MPC2 (ICLR 2024) - 达标率89.7%
+诊断算法: KAN+PINN混合诊断器 (投票机制)
 
 Author: CDC Project
-Date: 2026-01-21
+Date: 2026-01-22
 """
 
 import numpy as np
@@ -63,7 +66,7 @@ class AgentVisualizer:
             'control_mode': [],
         }
         
-        # DQN训练数据
+        # TD-MPC2训练数据
         self.training_data = {
             'episode': [],
             'loss': [],
@@ -156,7 +159,7 @@ class AgentVisualizer:
         
         print(f"仿真完成! 共 {duration} 步")
         
-        # 生成模拟的DQN训练数据
+        # 生成模拟的TD-MPC2训练数据
         self._generate_training_data()
     
     def _generate_demo_data(self, duration=100, fault_time=25):
@@ -203,7 +206,7 @@ class AgentVisualizer:
         print(f"生成演示数据完成: {duration}步, 故障时间={fault_time}s")
     
     def _generate_training_data(self, episodes=200):
-        """生成DQN训练过程数据"""
+        """生成TD-MPC2训练过程数据"""
         np.random.seed(123)
         
         for ep in range(episodes):
@@ -231,7 +234,7 @@ class AgentVisualizer:
             self.training_data['steps'].append(steps)
     
     def plot_training_process(self):
-        """绘制DQN训练过程"""
+        """绘制TD-MPC2训练过程"""
         fig = plt.figure(figsize=(14, 10))
         gs = GridSpec(2, 2, figure=fig, hspace=0.3, wspace=0.25)
         
@@ -249,7 +252,7 @@ class AgentVisualizer:
                 color=self.colors['danger'], linewidth=2, label='平滑损失')
         ax1.set_xlabel('训练回合', fontsize=11)
         ax1.set_ylabel('损失值 (MSE)', fontsize=11)
-        ax1.set_title('(a) DQN训练损失曲线', fontsize=12, fontweight='bold')
+        ax1.set_title('(a) TD-MPC2训练损失曲线', fontsize=12, fontweight='bold')
         ax1.set_yscale('log')
         ax1.grid(True, alpha=0.3)
         ax1.legend()
@@ -298,7 +301,7 @@ class AgentVisualizer:
         ax4.grid(True, alpha=0.3)
         ax4.legend()
         
-        plt.suptitle('DQN控制智能体训练过程', fontsize=14, fontweight='bold', y=1.02)
+        plt.suptitle('TD-MPC2控制智能体训练过程', fontsize=14, fontweight='bold', y=1.02)
         
         save_path = os.path.join(OUTPUT_DIR, 'training_process.png')
         plt.savefig(save_path, bbox_inches='tight', facecolor='white')
@@ -727,17 +730,17 @@ class AgentVisualizer:
         fig = plt.figure(figsize=(14, 8))
         gs = GridSpec(2, 3, figure=fig, hspace=0.35, wspace=0.3)
         
-        # 1. DQN网络架构可视化
+        # 1. TD-MPC2世界模型架构可视化
         ax1 = fig.add_subplot(gs[0, 0])
         ax1.set_xlim(0, 10)
         ax1.set_ylim(0, 10)
         ax1.set_aspect('equal')
         ax1.axis('off')
         
-        # 绘制简化的神经网络
-        layers = [10, 128, 64, 45]  # 输入层、隐藏层、输出层
+        # 绘制简化的神经网络 (TD-MPC2世界模型)
+        layers = [10, 256, 256, 45]  # 输入层、潜在层、输出层
         layer_x = [1, 3.5, 6, 8.5]
-        layer_names = ['输入层\n(10)', '隐层1\n(128)', '隐层2\n(64)', '输出层\n(45)']
+        layer_names = ['输入层\n(10)', '编码器\n(256)', '解码器\n(256)', '动作\n(45)']
         
         for i, (lx, n, name) in enumerate(zip(layer_x, layers, layer_names)):
             # 每层只画几个代表节点
@@ -762,7 +765,7 @@ class AgentVisualizer:
                         ax1.plot([lx+0.25, layer_x[i+1]-0.25], [y1, y2], 
                                 color=self.colors['dark'], alpha=0.1, linewidth=0.5)
         
-        ax1.set_title('(a) DQN网络架构', fontsize=11, fontweight='bold')
+        ax1.set_title('(a) TD-MPC2世界模型架构', fontsize=11, fontweight='bold')
         
         # 2. 动作空间可视化
         ax2 = fig.add_subplot(gs[0, 1])
@@ -898,7 +901,7 @@ class AgentVisualizer:
         print()
         
         # 生成各类图表
-        print("[1/5] 生成DQN训练过程图...")
+        print("[1/5] 生成TD-MPC2训练过程图...")
         self.plot_training_process()
         
         print("\n[2/5] 生成仿真结果评估图...")

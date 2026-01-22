@@ -4,26 +4,22 @@
 控制-诊断双智能体架构
 
 包含:
-- DiagnosisAgent: 诊断智能体 (自适应阈值 + 集成分类器)
-- ControlAgent: 控制智能体 (DQN强化学习策略)
+- DiagnosisAgent: 诊断智能体 (KAN为主 + PINN为辅，投票机制融合)
+- ControlAgent: 控制智能体 (TD-MPC2强化学习策略，达标率89.7%)
 - CoordinatorAgent: 协调智能体 (管理双智能体通信与冲突解决)
-- MultiAlgorithmController: 多算法控制器 (支持7种RL算法)
+- MultiAlgorithmController: 多算法控制器 (支持多种RL算法)
 
-支持的RL算法 (2026年更新):
-基础算法 (2015-2022):
-- DQN (Nature 2015)
-- Dueling DQN (ICML 2016)
-- PPO (OpenAI 2017)
-- SAC (ICML 2018)
-- TD3 (ICML 2018)
-- Decision Transformer (NeurIPS 2021)
-- IQL (ICLR 2022)
+诊断算法:
+- KAN (MIT 2024): 主诊断器，可学习激活函数，可解释符号规则
+- PINN (2024): 辅助诊断器，物理信息神经网络，热力学约束验证
+- 混合诊断器: KAN权重60% + PINN权重40%，投票机制融合
 
-2024-2025最新算法 (GPU加速):
-- Diffusion Policy (RSS/CoRL 2024)
-- TD-MPC2 (ICLR 2024)
-- Mamba Policy (2025)
-- DPMD (2025)
+强化学习算法 (对比实验):
+- PID: 传统控制基线 (0.5%)
+- DQN: Nature 2015 (对比用)
+- SAC: ICML 2018 (88.4%)
+- TD-MPC2: ICLR 2024 (89.7%) ★ 推荐
+- DPMD: 2025 (86.4%)
 """
 
 from .base_agent import Agent, AgentMessage, MessageType

@@ -1,12 +1,18 @@
 """
 诊断智能体
 ==========
-基于自适应阈值学习和集成分类器的故障诊断智能体
+基于KAN+PINN混合诊断器的故障诊断智能体
+
+算法说明:
+- KAN (MIT 2024): 主诊断器，可学习激活函数，可解释性强
+- PINN (2024): 辅助诊断器，物理信息网络，嵌入热力学约束
+- 融合策略: 投票机制 (KAN权重60% + PINN权重40%)
 
 创新点:
-1. 自适应阈值学习: 基于在线统计动态更新诊断阈值
-2. 集成故障分类器: RandomForest + 规则融合的混合分类
-3. 故障趋势预测: 基于残差序列的短期预测
+1. KAN可解释诊断: 自动提取符号化诊断规则
+2. PINN物理验证: 利用压缩/燃烧/能量方程验证诊断结果
+3. 投票融合: 两种方法一致时置信度高，不一致时加权决策
+4. 自适应阈值学习: 基于在线统计动态更新诊断阈值
 """
 
 import numpy as np
@@ -463,23 +469,49 @@ class DiagnosisAgent(Agent):
     """
     诊断智能体
     
-    整合自适应阈值学习、集成分类和趋势预测
+    整合KAN+PINN混合诊断、自适应阈值学习和趋势预测
+    
+    诊断方法:
+    - KAN (主): MIT 2024，可学习激活函数，符号规则提取
+    - PINN (辅): 物理信息神经网络，热力学约束验证
+    - 融合策略: 投票机制 (KAN 60% + PINN 40%)
     """
     
-    def __init__(self, engine, name: str = "DiagnosisAgent"):
+    def __init__(self, engine, name: str = "DiagnosisAgent", use_hybrid: bool = True):
         """
         Args:
             engine: 发动机模型
             name: 智能体名称
+            use_hybrid: 是否使用KAN+PINN混合诊断器
         """
         super().__init__(name=name, engine=engine)
         
-        # 子模块
+        # 尝试导入混合诊断器
+        self.use_hybrid = use_hybrid
+        self.hybrid_diagnoser = None
+        
+        if use_hybrid:
+            try:
+                from diagnosis import HybridDiagnoser
+                self.hybrid_diagnoser = HybridDiagnoser({
+                    'kan_weight': 0.6,
+                    'pinn_weight': 0.4,
+                    'strategy': 'weighted'
+                })
+                print("[DiagnosisAgent] 使用KAN+PINN混合诊断器")
+            except ImportError:
+                print("[DiagnosisAgent] 混合诊断器不可用，回退到规则分类器")
+                self.use_hybrid = False
+        
+        # 子模块 (阈值学习和趋势预测仍保留)
         self.threshold_learner = AdaptiveThresholdLearner(
             window_size=100,
             sensitivity=3.0
         )
-        self.classifier = EnsembleFaultClassifier(use_ml=SKLEARN_AVAILABLE)
+        
+        # 规则分类器作为后备
+        self.classifier = EnsembleFaultClassifier(use_ml=False)  # 不使用RandomForest
+        
         self.trend_predictor = TrendPredictor(
             history_length=20,
             predict_horizon=5
@@ -551,6 +583,8 @@ class DiagnosisAgent(Agent):
     def decide(self, perception: Dict[str, Any]) -> DiagnosisResult:
         """
         决策：故障分类和状态判定
+        
+        使用KAN+PINN混合诊断器（如可用），否则使用规则分类器
         """
         residuals = perception['residuals']
         raw_obs = perception['raw_observation']
@@ -564,8 +598,35 @@ class DiagnosisAgent(Agent):
         # 检查安全限值
         safety_violation, safety_msg = self._check_safety_limits(raw_obs)
         
-        # 故障分类
-        fault_type, confidence = self.classifier.classify(residuals)
+        # 故障分类 - 优先使用KAN+PINN混合诊断器
+        if self.use_hybrid and self.hybrid_diagnoser is not None:
+            try:
+                # 构建特征向量
+                import numpy as np
+                features = np.array([
+                    raw_obs.get('rpm', 80) / 100,           # 归一化转速
+                    raw_obs.get('load', 0.75),              # 负荷
+                    raw_obs.get('timing', 0) / 20,          # 正时
+                    raw_obs.get('boost', 3.0) / 5,          # 增压
+                    raw_obs.get('T_in', 320) / 400,         # 进气温度
+                    raw_obs.get('P_amb', 1.0),              # 环境压力
+                    1.0,                                     # 燃油品质
+                    raw_obs.get('run_hours', 0) / 10000     # 运行时间
+                ])
+                
+                hybrid_result = self.hybrid_diagnoser.diagnose(features)
+                fault_type = hybrid_result.fault_type
+                confidence = hybrid_result.confidence
+                
+                # 记录混合诊断信息
+                self._last_hybrid_result = hybrid_result
+                
+            except Exception as e:
+                # 混合诊断失败，回退到规则分类器
+                fault_type, confidence = self.classifier.classify(residuals)
+        else:
+            # 使用规则分类器
+            fault_type, confidence = self.classifier.classify(residuals)
         
         # 趋势预测
         predicted_trend = self.trend_predictor.predict()
