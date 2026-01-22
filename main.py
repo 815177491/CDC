@@ -249,18 +249,21 @@ def run_fault_simulation(engine: MarineEngine0D, use_agents: bool = True) -> dic
     if using_agents:
         report = coordinator.get_comprehensive_report()
         print(f"\n=== 双智能体系统性能汇总 ===")
-        print(f"  系统状态: {report['system_state']}")
-        print(f"  总步数: {report['coordinator_metrics']['total_steps']}")
-        print(f"  冲突检测: {report['coordinator_metrics']['conflicts_detected']}")
-        print(f"  冲突解决: {report['coordinator_metrics']['conflicts_resolved']}")
-        print(f"  平均协调耗时: {report['coordinator_metrics']['avg_coordination_time_ms']:.2f}ms")
-        print(f"\n  诊断智能体:")
-        print(f"    学习阈值: {report['diagnosis_agent']['learned_thresholds']}")
-        print(f"    分类器状态: {report['diagnosis_agent']['classifier_status']}")
-        print(f"\n  控制智能体:")
-        print(f"    当前VIT: {report['control_agent']['current_vit']:.2f}°")
-        print(f"    RL动作占比: {report['control_agent']['performance']['rl_actions']}/{report['control_agent']['performance']['total_actions']}")
-        perf = report['control_agent']['performance']
+        print(f"  系统状态: {report.get('system_state', 'UNKNOWN')}")
+        if 'coordinator_metrics' in report:
+            print(f"  总步数: {report['coordinator_metrics'].get('total_steps', 0)}")
+            print(f"  冲突检测: {report['coordinator_metrics'].get('conflicts_detected', 0)}")
+            print(f"  冲突解决: {report['coordinator_metrics'].get('conflicts_resolved', 0)}")
+            print(f"  平均协调耗时: {report['coordinator_metrics'].get('avg_coordination_time_ms', 0):.2f}ms")
+        if 'diagnosis_agent' in report:
+            print(f"\n  诊断智能体:")
+            print(f"    学习阈值: {report['diagnosis_agent'].get('learned_thresholds', {})}")
+            print(f"    分类器状态: {report['diagnosis_agent'].get('classifier_status', {})}")
+        if 'control_agent' in report:
+            print(f"\n  控制智能体:")
+            print(f"    当前VIT: {report['control_agent'].get('current_vit', 0):.2f}°")
+            perf = report['control_agent'].get('performance', {})
+            print(f"    RL动作占比: {perf.get('rl_actions', 0)}/{perf.get('total_actions', 0)}")
     else:
         perf = controller.get_performance_summary()
         print(f"\n控制器性能汇总:")

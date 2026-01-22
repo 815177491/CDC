@@ -106,245 +106,245 @@ if TORCH_AVAILABLE:
         """
         
         def __init__(self, state_dim: int = 10, n_vit_actions: int = 9, 
-                     n_fuel_actions: int = 5, device: str = 'cpu'):
-            """
-            Args:
-                state_dim: 状态维度
-                n_vit_actions: VIT离散动作数 (如 -4, -3, -2, -1, 0, 1, 2, 3, 4)
-                n_fuel_actions: 燃油离散动作数 (如 0.7, 0.8, 0.9, 0.95, 1.0)
-                device: 计算设备
-            """
-            self.state_dim = state_dim
-            self.n_vit_actions = n_vit_actions
-            self.n_fuel_actions = n_fuel_actions
-            self.action_dim = n_vit_actions * n_fuel_actions  # 组合动作空间
-            
-            self.device = device
-            
-            # VIT动作映射 [-8, -6, -4, -2, 0, 2, 4] 度
-            self.vit_actions = np.linspace(-8, 4, n_vit_actions)
-            
-            # 燃油动作映射 [0.7, 0.8, 0.9, 0.95, 1.0]
-            self.fuel_actions = np.linspace(0.7, 1.0, n_fuel_actions)
-            
-            # 网络
-            self.online_net = DQNNetwork(state_dim, self.action_dim).to(device)
-            self.target_net = DQNNetwork(state_dim, self.action_dim).to(device)
-            self.target_net.load_state_dict(self.online_net.state_dict())
-            
-            # 优化器
-            self.optimizer = optim.Adam(self.online_net.parameters(), lr=0.001)
-            
-            # 经验回放
-            self.replay_buffer = ReplayBuffer(capacity=10000)
-            
-            # 超参数
-            self.gamma = 0.99          # 折扣因子
-            self.epsilon = 1.0         # 探索率
-            self.epsilon_min = 0.05
-            self.epsilon_decay = 0.995
-            self.batch_size = 64
-            self.target_update_freq = 100
-            
-            # 训练计数
-            self.train_step = 0
-            self.is_trained = False
+                 n_fuel_actions: int = 5, device: str = 'cpu'):
+        """
+        Args:
+            state_dim: 状态维度
+            n_vit_actions: VIT离散动作数 (如 -4, -3, -2, -1, 0, 1, 2, 3, 4)
+            n_fuel_actions: 燃油离散动作数 (如 0.7, 0.8, 0.9, 0.95, 1.0)
+            device: 计算设备
+        """
+        self.state_dim = state_dim
+        self.n_vit_actions = n_vit_actions
+        self.n_fuel_actions = n_fuel_actions
+        self.action_dim = n_vit_actions * n_fuel_actions  # 组合动作空间
+        
+        self.device = device
+        
+        # VIT动作映射 [-8, -6, -4, -2, 0, 2, 4] 度
+        self.vit_actions = np.linspace(-8, 4, n_vit_actions)
+        
+        # 燃油动作映射 [0.7, 0.8, 0.9, 0.95, 1.0]
+        self.fuel_actions = np.linspace(0.7, 1.0, n_fuel_actions)
+        
+        # 网络
+        self.online_net = DQNNetwork(state_dim, self.action_dim).to(device)
+        self.target_net = DQNNetwork(state_dim, self.action_dim).to(device)
+        self.target_net.load_state_dict(self.online_net.state_dict())
+        
+        # 优化器
+        self.optimizer = optim.Adam(self.online_net.parameters(), lr=0.001)
+        
+        # 经验回放
+        self.replay_buffer = ReplayBuffer(capacity=10000)
+        
+        # 超参数
+        self.gamma = 0.99          # 折扣因子
+        self.epsilon = 1.0         # 探索率
+        self.epsilon_min = 0.05
+        self.epsilon_decay = 0.995
+        self.batch_size = 64
+        self.target_update_freq = 100
+        
+        # 训练计数
+        self.train_step = 0
+        self.is_trained = False
     
-        def encode_state(self, observation: Dict[str, Any], 
-                         diagnosis_result: Any,
-                         current_vit: float,
-                         current_fuel: float) -> np.ndarray:
-            """
-            编码状态向量
+    def encode_state(self, observation: Dict[str, Any], 
+                     diagnosis_result: Any,
+                     current_vit: float,
+                     current_fuel: float) -> np.ndarray:
+        """
+        编码状态向量
         
-            Args:
-                observation: 测量值
-                diagnosis_result: 诊断结果
-                current_vit: 当前VIT值
-                current_fuel: 当前燃油系数
+        Args:
+            observation: 测量值
+            diagnosis_result: 诊断结果
+            current_vit: 当前VIT值
+            current_fuel: 当前燃油系数
             
-            Returns:
-                state: 归一化状态向量
-            """
-            # 提取特征
-            Pmax = observation.get('Pmax', 170) / 200.0  # 归一化
-            Pcomp = observation.get('Pcomp', 150) / 200.0
-            Texh = observation.get('Texh', 350) / 500.0
+        Returns:
+            state: 归一化状态向量
+        """
+        # 提取特征
+        Pmax = observation.get('Pmax', 170) / 200.0  # 归一化
+        Pcomp = observation.get('Pcomp', 150) / 200.0
+        Texh = observation.get('Texh', 350) / 500.0
         
-            residuals = diagnosis_result.residuals if diagnosis_result else {}
-            r_Pmax = residuals.get('Pmax', 0)
-            r_Pcomp = residuals.get('Pcomp', 0)
-            r_Texh = residuals.get('Texh', 0)
+        residuals = diagnosis_result.residuals if diagnosis_result else {}
+        r_Pmax = residuals.get('Pmax', 0)
+        r_Pcomp = residuals.get('Pcomp', 0)
+        r_Texh = residuals.get('Texh', 0)
         
-            # 故障类型编码
-            fault_type_enc = 0
-            if diagnosis_result and diagnosis_result.fault_detected:
-                fault_type_enc = hash(diagnosis_result.fault_type.name) % 10 / 10.0
+        # 故障类型编码
+        fault_type_enc = 0
+        if diagnosis_result and diagnosis_result.fault_detected:
+            fault_type_enc = hash(diagnosis_result.fault_type.name) % 10 / 10.0
         
-            # 模式编码
-            mode_enc = 0
-            if diagnosis_result:
-                mode_map = {
-                    'HEALTHY': 0,
-                    'WARNING': 0.33,
-                    'FAULT': 0.66,
-                    'CRITICAL': 1.0
-                }
-                mode_enc = mode_map.get(diagnosis_result.diagnosis_state.name, 0)
+        # 模式编码
+        mode_enc = 0
+        if diagnosis_result:
+            mode_map = {
+                'HEALTHY': 0,
+                'WARNING': 0.33,
+                'FAULT': 0.66,
+                'CRITICAL': 1.0
+            }
+            mode_enc = mode_map.get(diagnosis_result.diagnosis_state.name, 0)
         
-            # VIT和燃油归一化
-            vit_norm = (current_vit + 8) / 12.0  # [-8, 4] -> [0, 1]
-            fuel_norm = (current_fuel - 0.7) / 0.3  # [0.7, 1.0] -> [0, 1]
+        # VIT和燃油归一化
+        vit_norm = (current_vit + 8) / 12.0  # [-8, 4] -> [0, 1]
+        fuel_norm = (current_fuel - 0.7) / 0.3  # [0.7, 1.0] -> [0, 1]
         
-            state = np.array([
-                Pmax, Pcomp, Texh,
-                r_Pmax, r_Pcomp, r_Texh,
-                fault_type_enc, mode_enc,
-                vit_norm, fuel_norm
-            ], dtype=np.float32)
+        state = np.array([
+            Pmax, Pcomp, Texh,
+            r_Pmax, r_Pcomp, r_Texh,
+            fault_type_enc, mode_enc,
+            vit_norm, fuel_norm
+        ], dtype=np.float32)
         
-            return state
+        return state
     
-        def decode_action(self, action_idx: int) -> Tuple[float, float]:
-            """
-            解码动作索引为VIT和燃油值
+    def decode_action(self, action_idx: int) -> Tuple[float, float]:
+        """
+        解码动作索引为VIT和燃油值
         
-            Args:
-                action_idx: 组合动作索引
+        Args:
+            action_idx: 组合动作索引
             
-            Returns:
-                (vit_value, fuel_value)
-            """
-            vit_idx = action_idx // self.n_fuel_actions
-            fuel_idx = action_idx % self.n_fuel_actions
+        Returns:
+            (vit_value, fuel_value)
+        """
+        vit_idx = action_idx // self.n_fuel_actions
+        fuel_idx = action_idx % self.n_fuel_actions
         
-            return self.vit_actions[vit_idx], self.fuel_actions[fuel_idx]
+        return self.vit_actions[vit_idx], self.fuel_actions[fuel_idx]
     
-        def select_action(self, state: np.ndarray, training: bool = True) -> int:
-            """
-            选择动作 (ε-greedy策略)
+    def select_action(self, state: np.ndarray, training: bool = True) -> int:
+        """
+        选择动作 (ε-greedy策略)
         
-            Args:
-                state: 状态向量
-                training: 是否处于训练模式
+        Args:
+            state: 状态向量
+            training: 是否处于训练模式
             
-            Returns:
-                action_idx: 动作索引
-            """
-            if training and np.random.random() < self.epsilon:
-                # 探索
-                return np.random.randint(self.action_dim)
-            else:
-                # 利用
-                with torch.no_grad():
-                    state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-                    q_values = self.online_net(state_tensor)
-                    return q_values.argmax().item()
-    
-        def compute_reward(self, observation: Dict[str, float],
-                           vit: float, fuel: float,
-                           Pmax_limit: float = 190.0) -> float:
-            """
-            计算奖励
-        
-            奖励函数设计:
-            - 安全奖励: Pmax在安全范围内得正奖励
-            - 效率惩罚: 燃油削减和VIT调整会有代价
-            - 稳定性奖励: 平稳控制得奖励
-            """
-            Pmax = observation.get('Pmax', 170)
-        
-            reward = 0.0
-        
-            # 安全奖励 (最重要)
-            if Pmax <= Pmax_limit:
-                # 在安全范围内，越接近目标越好
-                target_Pmax = 170.0
-                deviation = abs(Pmax - target_Pmax) / target_Pmax
-                reward += 1.0 - deviation  # [0, 1]
-            else:
-                # 超限惩罚
-                overshoot = (Pmax - Pmax_limit) / Pmax_limit
-                reward -= 5.0 * overshoot  # 强惩罚
-        
-            # 效率惩罚
-            fuel_penalty = (1.0 - fuel) * 0.5  # 燃油削减的代价
-            vit_penalty = abs(vit) * 0.02      # VIT调整的代价
-            reward -= (fuel_penalty + vit_penalty)
-        
-            # 平稳控制奖励 (避免剧烈波动)
-            # TODO: 需要历史数据计算
-        
-            return reward
-    
-        def update(self) -> Optional[float]:
-            """
-            执行一次DQN更新
-        
-            Returns:
-                loss: 训练损失 (如果执行了训练)
-            """
-            if len(self.replay_buffer) < self.batch_size:
-                return None
-        
-            # 采样batch
-            batch = self.replay_buffer.sample(self.batch_size)
-        
-            states = torch.FloatTensor(np.array([e['state'] for e in batch])).to(self.device)
-            actions = torch.LongTensor([e['action'] for e in batch]).to(self.device)
-            rewards = torch.FloatTensor([e['reward'] for e in batch]).to(self.device)
-            next_states = torch.FloatTensor(np.array([e['next_state'] for e in batch])).to(self.device)
-            dones = torch.FloatTensor([e['done'] for e in batch]).to(self.device)
-        
-            # 当前Q值
-            current_q = self.online_net(states).gather(1, actions.unsqueeze(1))
-        
-            # 目标Q值 (Double DQN)
+        Returns:
+            action_idx: 动作索引
+        """
+        if training and np.random.random() < self.epsilon:
+            # 探索
+            return np.random.randint(self.action_dim)
+        else:
+            # 利用
             with torch.no_grad():
-                next_actions = self.online_net(next_states).argmax(1, keepdim=True)
-                next_q = self.target_net(next_states).gather(1, next_actions)
-                target_q = rewards.unsqueeze(1) + self.gamma * next_q * (1 - dones.unsqueeze(1))
-        
-            # 损失
-            loss = F.mse_loss(current_q, target_q)
-        
-            # 优化
-            self.optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.online_net.parameters(), 1.0)
-            self.optimizer.step()
-        
-            # 更新目标网络
-            self.train_step += 1
-            if self.train_step % self.target_update_freq == 0:
-                self.target_net.load_state_dict(self.online_net.state_dict())
-        
-            # 衰减探索率
-            self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-        
-            self.is_trained = True
-        
-            return loss.item()
+                state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+                q_values = self.online_net(state_tensor)
+                return q_values.argmax().item()
     
-        def save(self, path: str) -> None:
-            """保存模型"""
-            torch.save({
-                'online_net': self.online_net.state_dict(),
-                'target_net': self.target_net.state_dict(),
-                'optimizer': self.optimizer.state_dict(),
-                'epsilon': self.epsilon,
-                'train_step': self.train_step,
-            }, path)
+    def compute_reward(self, observation: Dict[str, float],
+                       vit: float, fuel: float,
+                       Pmax_limit: float = 190.0) -> float:
+        """
+        计算奖励
+        
+        奖励函数设计:
+        - 安全奖励: Pmax在安全范围内得正奖励
+        - 效率惩罚: 燃油削减和VIT调整会有代价
+        - 稳定性奖励: 平稳控制得奖励
+        """
+        Pmax = observation.get('Pmax', 170)
+        
+        reward = 0.0
+        
+        # 安全奖励 (最重要)
+        if Pmax <= Pmax_limit:
+            # 在安全范围内，越接近目标越好
+            target_Pmax = 170.0
+            deviation = abs(Pmax - target_Pmax) / target_Pmax
+            reward += 1.0 - deviation  # [0, 1]
+        else:
+            # 超限惩罚
+            overshoot = (Pmax - Pmax_limit) / Pmax_limit
+            reward -= 5.0 * overshoot  # 强惩罚
+        
+        # 效率惩罚
+        fuel_penalty = (1.0 - fuel) * 0.5  # 燃油削减的代价
+        vit_penalty = abs(vit) * 0.02      # VIT调整的代价
+        reward -= (fuel_penalty + vit_penalty)
+        
+        # 平稳控制奖励 (避免剧烈波动)
+        # TODO: 需要历史数据计算
+        
+        return reward
     
-        def load(self, path: str) -> None:
-            """加载模型"""
-            checkpoint = torch.load(path, map_location=self.device)
-            self.online_net.load_state_dict(checkpoint['online_net'])
-            self.target_net.load_state_dict(checkpoint['target_net'])
-            self.optimizer.load_state_dict(checkpoint['optimizer'])
-            self.epsilon = checkpoint['epsilon']
-            self.train_step = checkpoint['train_step']
-            self.is_trained = True
+    def update(self) -> Optional[float]:
+        """
+        执行一次DQN更新
+        
+        Returns:
+            loss: 训练损失 (如果执行了训练)
+        """
+        if len(self.replay_buffer) < self.batch_size:
+            return None
+        
+        # 采样batch
+        batch = self.replay_buffer.sample(self.batch_size)
+        
+        states = torch.FloatTensor(np.array([e['state'] for e in batch])).to(self.device)
+        actions = torch.LongTensor([e['action'] for e in batch]).to(self.device)
+        rewards = torch.FloatTensor([e['reward'] for e in batch]).to(self.device)
+        next_states = torch.FloatTensor(np.array([e['next_state'] for e in batch])).to(self.device)
+        dones = torch.FloatTensor([e['done'] for e in batch]).to(self.device)
+        
+        # 当前Q值
+        current_q = self.online_net(states).gather(1, actions.unsqueeze(1))
+        
+        # 目标Q值 (Double DQN)
+        with torch.no_grad():
+            next_actions = self.online_net(next_states).argmax(1, keepdim=True)
+            next_q = self.target_net(next_states).gather(1, next_actions)
+            target_q = rewards.unsqueeze(1) + self.gamma * next_q * (1 - dones.unsqueeze(1))
+        
+        # 损失
+        loss = F.mse_loss(current_q, target_q)
+        
+        # 优化
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.online_net.parameters(), 1.0)
+        self.optimizer.step()
+        
+        # 更新目标网络
+        self.train_step += 1
+        if self.train_step % self.target_update_freq == 0:
+            self.target_net.load_state_dict(self.online_net.state_dict())
+        
+        # 衰减探索率
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+        
+        self.is_trained = True
+        
+        return loss.item()
+    
+    def save(self, path: str) -> None:
+        """保存模型"""
+        torch.save({
+            'online_net': self.online_net.state_dict(),
+            'target_net': self.target_net.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'epsilon': self.epsilon,
+            'train_step': self.train_step,
+        }, path)
+    
+    def load(self, path: str) -> None:
+        """加载模型"""
+        checkpoint = torch.load(path, map_location=self.device)
+        self.online_net.load_state_dict(checkpoint['online_net'])
+        self.target_net.load_state_dict(checkpoint['target_net'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.epsilon = checkpoint['epsilon']
+        self.train_step = checkpoint['train_step']
+        self.is_trained = True
 
 
 class PIDController:
