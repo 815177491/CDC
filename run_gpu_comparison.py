@@ -111,7 +111,8 @@ def run_quick_validation(config):
     print("="*70)
     
     experiment = FiveMethodComparison(config)
-    methods = ["PID", "SAC", "TDMPC2", "MambaPolicy", "DPMD"]
+    # 论文正式对比方法：PID + DQN + SAC + TD-MPC2 + DPMD
+    methods = ["PID", "DQN", "SAC", "TDMPC2", "DPMD"]
     
     results = experiment.run_quick_validation(methods)
     
@@ -129,7 +130,8 @@ def run_full_experiment(config, experiment=None):
     print("🔬 完整对比实验 (5个种子: 42, 123, 456, 789, 1024)")
     print("="*70)
     
-    methods = ["PID", "SAC", "TDMPC2", "MambaPolicy", "DPMD"]
+    # 论文正式对比方法：PID + DQN + SAC + TD-MPC2 + DPMD
+    methods = ["PID", "DQN", "SAC", "TDMPC2", "DPMD"]
     comparison = experiment.run_full_comparison(methods)
     
     return comparison

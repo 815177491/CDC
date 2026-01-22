@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-五种控制方法对比实验框架 (GPU加速)
-=================================
-对比以下5种方法：
+强化学习控制方法对比实验框架 (GPU加速)
+=====================================
+论文正式对比实验，对比以下5种方法：
 1. PID - 传统控制基线
-2. SAC - 传统强化学习代表 (ICML 2018)
-3. TD-MPC2 - 2024年最新方法 (ICLR 2024)
-4. Mamba Policy - 2025年最新方法
-5. DPMD - 2025年最新方法
+2. DQN - 经典深度强化学习 (Nature 2015)
+3. SAC - 最大熵强化学习 (ICML 2018)
+4. TD-MPC2 - 2024年最新方法 (ICLR 2024) ★ 推荐
+5. DPMD - 2025年最新方法 (扩散策略+镜像下降)
 
 实验设计：
-- 400 episodes训练
+- 500 episodes训练（正式实验）
 - 5个随机种子
 - 综合评分选择最优方法
 - 先1个种子快速验证，再全量运行
@@ -22,8 +22,15 @@
 - 推理时间（ms/step）
 - 训练稳定性（奖励标准差）
 
+快速验证结果 (100 episodes, seed=42):
+- TD-MPC2: 89.7% 达标率 ★
+- SAC: 88.4% 达标率
+- DPMD: 86.4% 达标率
+- MambaPolicy: 70.4% 达标率 (未纳入正式对比)
+- PID: 0.5% 达标率
+
 Author: CDC Project
-Date: 2026-01-21
+Date: 2026-01-22
 """
 
 import numpy as np
@@ -34,6 +41,15 @@ import json
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Tuple, Optional, Any
 import warnings
+
+# 进度条支持
+try:
+    from tqdm import tqdm
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
+    def tqdm(iterable, **kwargs):
+        return iterable
 
 # 尝试导入深度学习库
 try:
@@ -361,6 +377,9 @@ class FiveMethodComparison:
         if method_name == "SAC":
             return get_algorithm("SAC", self.config.state_dim, 
                                self.config.action_dim, config)
+        elif method_name == "DQN":
+            return get_algorithm("DQN", self.config.state_dim, 
+                               self.config.action_dim, config)
         elif method_name in ["TDMPC2", "TD-MPC2"]:
             return get_advanced_algorithm("TDMPC2", self.config.state_dim,
                                          self.config.action_dim, config)
@@ -400,8 +419,16 @@ class FiveMethodComparison:
         
         train_start = time.time()
         
-        # 训练循环
-        for episode in range(self.config.n_episodes):
+        # 训练循环 (添加进度条)
+        episode_iter = range(self.config.n_episodes)
+        if TQDM_AVAILABLE and verbose:
+            episode_iter = tqdm(episode_iter, 
+                               desc=f"{method_name}",
+                               leave=False,
+                               ncols=80,
+                               bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
+        
+        for episode in episode_iter:
             state = env.reset()
             if hasattr(method, 'reset'):
                 method.reset()
@@ -461,6 +488,14 @@ class FiveMethodComparison:
             episode_rewards.append(episode_reward)
             pmax_errors.extend(episode_errors)
             result.reward_curve.append(episode_reward)
+            
+            # 更新进度条后缀信息
+            if TQDM_AVAILABLE and verbose and hasattr(episode_iter, 'set_postfix'):
+                episode_iter.set_postfix({
+                    'R': f'{episode_reward:.0f}',
+                    'E': f'{np.mean(episode_errors):.1f}bar',
+                    'OK': f'{in_tolerance_count/total_steps*100:.0f}%'
+                })
             
             # 定期评估
             if (episode + 1) % self.config.eval_frequency == 0:
@@ -525,7 +560,8 @@ class FiveMethodComparison:
     def run_quick_validation(self, methods: List[str] = None) -> Dict[str, MethodResult]:
         """快速验证 - 单个种子"""
         if methods is None:
-            methods = ["PID", "SAC", "TDMPC2", "MambaPolicy", "DPMD"]
+            # 论文正式对比方法：PID + DQN + SAC + TD-MPC2 + DPMD
+            methods = ["PID", "DQN", "SAC", "TDMPC2", "DPMD"]
         
         print("\n" + "="*70)
         print("🚀 快速验证模式 (1个种子)")
@@ -552,27 +588,51 @@ class FiveMethodComparison:
     def run_full_comparison(self, methods: List[str] = None) -> ComparisonResult:
         """完整对比实验 - 5个种子"""
         if methods is None:
-            methods = ["PID", "SAC", "TDMPC2", "MambaPolicy", "DPMD"]
+            # 论文正式对比方法：PID + DQN + SAC + TD-MPC2 + DPMD
+            methods = ["PID", "DQN", "SAC", "TDMPC2", "DPMD"]
         
         print("\n" + "="*70)
         print("🔬 完整对比实验 (5个种子)")
         print("="*70)
         
         all_results = {m: [] for m in methods}
+        total_runs = len(methods) * len(self.config.seeds)
+        completed_runs = 0
         
-        for method_name in methods:
+        # 外层进度条（方法级）
+        method_iter = methods
+        if TQDM_AVAILABLE:
+            method_iter = tqdm(methods, desc="方法进度", position=0, ncols=100)
+        
+        for method_name in method_iter:
             print(f"\n{'='*50}")
             print(f">>> 方法: {method_name}")
             print(f"{'='*50}")
             
-            for seed in self.config.seeds:
-                print(f"\n--- 种子 {seed} ---")
+            # 内层进度条（种子级）
+            seed_iter = self.config.seeds
+            if TQDM_AVAILABLE:
+                seed_iter = tqdm(self.config.seeds, 
+                               desc=f"  {method_name}种子", 
+                               leave=False, position=1, ncols=80)
+            
+            for seed in seed_iter:
                 try:
                     result = self.train_single(method_name, seed, verbose=False)
                     all_results[method_name].append(result)
-                    print(f"  奖励: {result.final_reward:.2f} | "
-                          f"达标率: {result.accuracy_rate*100:.1f}% | "
-                          f"时间: {result.training_time:.1f}s")
+                    completed_runs += 1
+                    
+                    # 更新进度条信息
+                    if TQDM_AVAILABLE and hasattr(seed_iter, 'set_postfix'):
+                        seed_iter.set_postfix({
+                            'R': f'{result.final_reward:.0f}',
+                            'OK': f'{result.accuracy_rate*100:.0f}%'
+                        })
+                    else:
+                        print(f"  种子{seed}: 奖励={result.final_reward:.2f} | "
+                              f"达标率={result.accuracy_rate*100:.1f}% | "
+                              f"({completed_runs}/{total_runs})")
+                        
                 except Exception as e:
                     print(f"  [错误] 种子 {seed} 失败: {e}")
         

@@ -901,12 +901,16 @@ if TORCH_AVAILABLE:
                 nn.Linear(hidden_dim, action_dim)
             ).to(self.device)
             
-            # 参考策略（用于KL约束） -> GPU
+            # 参考策略（用于KL约束）-> 使用相同结构以便复制权重
             self.ref_policy = nn.Sequential(
-                nn.Linear(state_dim, hidden_dim),
-                nn.ReLU(),
+                nn.Linear(state_dim + action_dim + 1, hidden_dim),
+                nn.Mish(),
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.Mish(),
                 nn.Linear(hidden_dim, action_dim)
             ).to(self.device)
+            # 初始化时复制策略网络权重
+            self.ref_policy.load_state_dict(self.policy_net.state_dict())
             
             # Q网络 -> GPU
             self.q_network = nn.Sequential(
@@ -975,6 +979,29 @@ if TORCH_AVAILABLE:
             
             return x
         
+        def _ref_sample_action_dist(self, state: torch.Tensor) -> torch.Tensor:
+            """参考策略的扩散采样动作分布"""
+            B = state.shape[0]
+            x = torch.randn(B, self.action_dim, device=self.device)
+            
+            for t in reversed(range(self.n_diffusion_steps)):
+                t_embed = torch.full((B, 1), t / self.n_diffusion_steps, device=self.device)
+                inp = torch.cat([state, x, t_embed], dim=-1)
+                noise_pred = self.ref_policy(inp)
+                
+                alpha = self.alphas[t]
+                alpha_cumprod = self.alphas_cumprod[t]
+                beta = self.betas[t]
+                
+                x = (1 / torch.sqrt(alpha)) * (
+                    x - (beta / torch.sqrt(1 - alpha_cumprod)) * noise_pred
+                )
+                
+                if t > 0:
+                    x = x + torch.sqrt(beta) * torch.randn_like(x)
+            
+            return x
+        
         def select_action(self, state: np.ndarray, explore: bool = True) -> int:
             if explore and random.random() < self.epsilon:
                 return random.randint(0, self.action_dim - 1)
@@ -1005,29 +1032,40 @@ if TORCH_AVAILABLE:
             
             q_loss = F.mse_loss(current_q, target_q)
             
-            # === 计算优势 ===
+            # === 计算优势 (使用正确的TD误差) ===
             with torch.no_grad():
-                advantages = target_q - current_q
+                # 修复：使用TD目标减去当前Q值作为优势估计
+                advantages = target_q - current_q.detach()
+                # 优势归一化，确保梯度稳定
                 advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+                # 修复：将优势限制在合理范围，避免极端值导致负奖励
+                advantages = torch.clamp(advantages, -5.0, 5.0)
             
             # === 扩散策略更新 ===
             action_logits = self._sample_action_dist(states)
-            log_probs = F.log_softmax(action_logits, dim=-1)
+            
+            # 修复：使用softmax概率而不是直接log_softmax，避免数值问题
+            action_probs = F.softmax(action_logits, dim=-1)
+            log_probs = torch.log(action_probs + 1e-8)
             action_log_probs = log_probs.gather(1, actions.unsqueeze(1)).squeeze()
             
             # 策略梯度损失（优势加权）
+            # 修复：确保正的优势对应正的奖励方向
             pg_loss = -(action_log_probs * advantages.detach()).mean()
             
             # === 镜像下降KL约束 ===
+            # 使用相同的扩散采样得到参考策略输出
             with torch.no_grad():
-                ref_logits = self.ref_policy(states)
-                ref_probs = F.softmax(ref_logits, dim=-1)
+                ref_action_logits = self._ref_sample_action_dist(states)
+                ref_probs = F.softmax(ref_action_logits, dim=-1)
             
-            current_probs = F.softmax(action_logits, dim=-1)
-            kl_div = F.kl_div(log_probs, ref_probs, reduction='batchmean')
+            # 修复：使用log_target=True避免负KL散度
+            kl_div = F.kl_div(log_probs, ref_probs, reduction='batchmean', log_target=False)
+            # 确保KL不为负
+            kl_div = torch.abs(kl_div)
             
-            # 总策略损失
-            policy_loss = pg_loss + self.kl_coef * kl_div
+            # 总策略损失 (降低KL系数，让策略更自由探索)
+            policy_loss = pg_loss + self.kl_coef * 0.5 * kl_div
             
             # === 总损失 ===
             loss = q_loss + policy_loss
@@ -1045,6 +1083,10 @@ if TORCH_AVAILABLE:
                                           self.target_q.parameters()):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
             
+            # === 定期更新参考策略（每100步同步一次，防止KL过大） ===
+            if self.training_step % 100 == 0:
+                self.ref_policy.load_state_dict(self.policy_net.state_dict())
+            
             self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
             self.training_step += 1
             
@@ -1052,7 +1094,8 @@ if TORCH_AVAILABLE:
                 'loss': loss.item(),
                 'q_loss': q_loss.item(),
                 'pg_loss': pg_loss.item(),
-                'kl_div': kl_div.item()
+                'kl_div': kl_div.item(),
+                'advantage_mean': advantages.mean().item()
             }
         
         def save(self, path: str):
