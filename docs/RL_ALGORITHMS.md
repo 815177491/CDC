@@ -6,19 +6,20 @@
 
 ## 论文正式对比方法
 
-| 算法    | 名称                | 来源   | 年份 | 达标率 | 说明              |
-| ------- | ------------------- | ------ | ---- | ------ | ----------------- |
-| PID     | 传统PID控制         | -      | -    | 0.5%   | 传统控制基线      |
-| DQN     | Deep Q-Network      | Nature | 2015 | ~70%   | 经典RL基线        |
-| SAC     | Soft Actor-Critic   | ICML   | 2018 | 88.4%  | 最大熵框架        |
-| TD-MPC2 | TD Model Predictive Control | ICLR | 2024 | **89.7%** | **★ 推荐方法** |
-| DPMD    | Diffusion Policy Mirror Descent | - | 2025 | 86.4%  | 扩散策略+镜像下降 |
+| 算法    | 名称                            | 来源   | 年份 | 达标率    | 说明              |
+| ------- | ------------------------------- | ------ | ---- | --------- | ----------------- |
+| PID     | 传统PID控制                     | -      | -    | 0.5%      | 传统控制基线      |
+| DQN     | Deep Q-Network                  | Nature | 2015 | ~70%      | 经典RL基线        |
+| SAC     | Soft Actor-Critic               | ICML   | 2018 | 88.4%     | 最大熵框架        |
+| TD-MPC2 | TD Model Predictive Control     | ICLR   | 2024 | **89.7%** | **★ 推荐方法**    |
+| DPMD    | Diffusion Policy Mirror Descent | -      | 2025 | 86.4%     | 扩散策略+镜像下降 |
 
 ## 主控制算法: TD-MPC2
 
 **TD-MPC2 (ICLR 2024)** 是本项目选择的最终强化学习方法，达标率89.7%。
 
 核心特点:
+
 - 世界模型学习: 学习环境动态模型
 - TD学习: 时序差分更新Q值
 - MPC规划: CEM交叉熵方法规划最优动作序列
