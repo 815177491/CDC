@@ -37,6 +37,7 @@ import numpy as np
 import random
 import time
 import os
+import sys
 import json
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Tuple, Optional, Any
@@ -48,6 +49,18 @@ try:
     TQDM_AVAILABLE = True
 except ImportError:
     TQDM_AVAILABLE = False
+
+# 可视化支持
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # 非交互式后端
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    from matplotlib.gridspec import GridSpec
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+    warnings.warn("Matplotlib not available, visualization will be disabled")
     def tqdm(iterable, **kwargs):
         return iterable
 
@@ -419,16 +432,14 @@ class FiveMethodComparison:
         
         train_start = time.time()
         
-        # 训练循环 (添加进度条)
-        episode_iter = range(self.config.n_episodes)
-        if TQDM_AVAILABLE and verbose:
-            episode_iter = tqdm(episode_iter, 
-                               desc=f"{method_name}",
-                               leave=False,
-                               ncols=80,
-                               bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
+        # 用于存储最新的评估结果
+        last_eval_reward = 0.0
         
-        for episode in episode_iter:
+        # 训练配置
+        n_eps = self.config.n_episodes
+        show_progress = verbose  # 是否显示进度条
+        
+        for episode in range(self.config.n_episodes):
             state = env.reset()
             if hasattr(method, 'reset'):
                 method.reset()
@@ -489,23 +500,32 @@ class FiveMethodComparison:
             pmax_errors.extend(episode_errors)
             result.reward_curve.append(episode_reward)
             
-            # 更新进度条后缀信息
-            if TQDM_AVAILABLE and verbose and hasattr(episode_iter, 'set_postfix'):
-                episode_iter.set_postfix({
-                    'R': f'{episode_reward:.0f}',
-                    'E': f'{np.mean(episode_errors):.1f}bar',
-                    'OK': f'{in_tolerance_count/total_steps*100:.0f}%'
-                })
-            
             # 定期评估
             if (episode + 1) % self.config.eval_frequency == 0:
                 eval_reward = self._evaluate(method, env, self.config.n_eval_episodes)
                 result.eval_curve.append(eval_reward)
+                last_eval_reward = eval_reward
+            
+            # 更新进度条 - 手动实现精确格式
+            # 格式: PID      45%|████████████        | Episode 225/500 | Reward:  -850.3 | Eval:  -920.1 | Error:  1.25bar
+            if show_progress:
+                avg_reward = np.mean(episode_rewards[-10:]) if len(episode_rewards) >= 10 else np.mean(episode_rewards)
+                mean_error = np.mean(episode_errors)
+                ep = episode + 1
                 
-                if verbose:
-                    print(f"[{method_name}] Episode {episode+1}/{self.config.n_episodes} | "
-                          f"Reward: {episode_reward:.1f} | Eval: {eval_reward:.1f} | "
-                          f"Error: {np.mean(episode_errors):.2f}bar")
+                # 构建进度条
+                pct = int(ep / n_eps * 100)
+                filled = int(20 * ep / n_eps)
+                bar_str = '█' * filled + ' ' * (20 - filled)
+                
+                # 完整格式字符串
+                status = f"\r{method_name:<8s}{pct:3d}%|{bar_str}| Episode {ep:3d}/{n_eps} | Reward: {avg_reward:8.1f} | Eval: {last_eval_reward:8.1f} | Error: {mean_error:5.2f}bar"
+                sys.stdout.write(status)
+                sys.stdout.flush()
+        
+        # 进度条结束后换行
+        if show_progress:
+            print()
         
         # 计算结果
         result.training_time = time.time() - train_start
@@ -565,18 +585,24 @@ class FiveMethodComparison:
         
         print("\n" + "="*70)
         print("🚀 快速验证模式 (1个种子)")
+        print(f"   Episodes: {self.config.n_episodes} | Seed: {self.config.seeds[0]}")
         print("="*70)
         
         results = {}
         seed = self.config.seeds[0]
         
-        for method_name in methods:
-            print(f"\n>>> 训练 {method_name}...")
+        for method_idx, method_name in enumerate(methods):
+            print(f"\n{'─'*70}")
+            print(f"🔹 方法 [{method_idx+1}/{len(methods)}]: {method_name}")
+            print(f"{'─'*70}")
             try:
                 result = self.train_single(method_name, seed, verbose=True)
                 results[method_name] = result
+                print(f"  ✅ 完成: 奖励={result.final_reward:.1f} | "
+                      f"达标率={result.accuracy_rate*100:.1f}% | "
+                      f"训练时间={result.training_time:.1f}s")
             except Exception as e:
-                print(f"[错误] {method_name} 训练失败: {e}")
+                print(f"  ❌ {method_name} 训练失败: {e}")
                 import traceback
                 traceback.print_exc()
         
@@ -592,49 +618,34 @@ class FiveMethodComparison:
             methods = ["PID", "DQN", "SAC", "TDMPC2", "DPMD"]
         
         print("\n" + "="*70)
-        print("🔬 完整对比实验 (5个种子)")
+        print("🔬 完整对比实验 (5个种子 × 5种方法)")
+        print(f"   Episodes: {self.config.n_episodes} | Seeds: {self.config.seeds}")
         print("="*70)
         
         all_results = {m: [] for m in methods}
         total_runs = len(methods) * len(self.config.seeds)
         completed_runs = 0
         
-        # 外层进度条（方法级）
-        method_iter = methods
-        if TQDM_AVAILABLE:
-            method_iter = tqdm(methods, desc="方法进度", position=0, ncols=100)
-        
-        for method_name in method_iter:
-            print(f"\n{'='*50}")
-            print(f">>> 方法: {method_name}")
-            print(f"{'='*50}")
+        for method_idx, method_name in enumerate(methods):
+            print(f"\n{'─'*70}")
+            print(f"🔹 方法 [{method_idx+1}/{len(methods)}]: {method_name}")
+            print(f"{'─'*70}")
             
-            # 内层进度条（种子级）
-            seed_iter = self.config.seeds
-            if TQDM_AVAILABLE:
-                seed_iter = tqdm(self.config.seeds, 
-                               desc=f"  {method_name}种子", 
-                               leave=False, position=1, ncols=80)
-            
-            for seed in seed_iter:
+            # 内层进度条（种子级）- 每个种子单独训练并显示进度
+            for seed_idx, seed in enumerate(self.config.seeds):
+                print(f"\n  📌 种子 [{seed_idx+1}/{len(self.config.seeds)}]: {seed}")
                 try:
-                    result = self.train_single(method_name, seed, verbose=False)
+                    result = self.train_single(method_name, seed, verbose=True)
                     all_results[method_name].append(result)
                     completed_runs += 1
                     
-                    # 更新进度条信息
-                    if TQDM_AVAILABLE and hasattr(seed_iter, 'set_postfix'):
-                        seed_iter.set_postfix({
-                            'R': f'{result.final_reward:.0f}',
-                            'OK': f'{result.accuracy_rate*100:.0f}%'
-                        })
-                    else:
-                        print(f"  种子{seed}: 奖励={result.final_reward:.2f} | "
-                              f"达标率={result.accuracy_rate*100:.1f}% | "
-                              f"({completed_runs}/{total_runs})")
+                    # 打印该种子的结果摘要
+                    print(f"  ✅ 完成: 奖励={result.final_reward:.1f} | "
+                          f"达标率={result.accuracy_rate*100:.1f}% | "
+                          f"训练时间={result.training_time:.1f}s")
                         
                 except Exception as e:
-                    print(f"  [错误] 种子 {seed} 失败: {e}")
+                    print(f"  ❌ 种子 {seed} 失败: {e}")
         
         # 计算综合评分并排名
         comparison = self._compute_comparison(methods, all_results)
@@ -766,6 +777,218 @@ class FiveMethodComparison:
             json.dump(summary, f, indent=2, ensure_ascii=False, default=str)
         
         print(f"\n结果已保存到: {save_path}")
+    
+    def plot_comparison_results(self, comparison: ComparisonResult, save_dir: str = None):
+        """
+        绘制五种方法对比图
+        
+        包含：
+        1. 达标率对比柱状图
+        2. 学习曲线对比
+        3. 训练时间对比
+        4. 综合雷达图
+        """
+        if not MATPLOTLIB_AVAILABLE:
+            print("⚠️  Matplotlib未安装，跳过可视化")
+            return
+        
+        if save_dir is None:
+            save_dir = self.config.save_dir
+        
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # 设置中文字体
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+        plt.rcParams['axes.unicode_minus'] = False
+        
+        # 颜色方案
+        colors = {
+            'PID': '#95a5a6',      # 灰色
+            'DQN': '#3498db',      # 蓝色
+            'SAC': '#e74c3c',      # 红色
+            'TDMPC2': '#2ecc71',   # 绿色 (最优)
+            'DPMD': '#f39c12',     # 橙色
+        }
+        
+        methods = comparison.methods
+        
+        # 计算平均指标
+        avg_metrics = {}
+        for method in methods:
+            results = comparison.all_results.get(method, [])
+            if results:
+                avg_metrics[method] = {
+                    'accuracy': np.mean([r.accuracy_rate for r in results]) * 100,
+                    'reward': np.mean([r.final_reward for r in results]),
+                    'convergence': np.mean([r.convergence_episode for r in results]),
+                    'time': np.mean([r.training_time for r in results]),
+                }
+        
+        # ============ 图1：达标率对比柱状图 ============
+        fig1, ax1 = plt.subplots(figsize=(10, 6))
+        
+        method_names = list(avg_metrics.keys())
+        accuracies = [avg_metrics[m]['accuracy'] for m in method_names]
+        bar_colors = [colors.get(m, '#34495e') for m in method_names]
+        
+        bars = ax1.bar(method_names, accuracies, color=bar_colors, alpha=0.8, edgecolor='black')
+        
+        # 标注数值
+        for bar, acc in zip(bars, accuracies):
+            height = bar.get_height()
+            ax1.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{acc:.1f}%', ha='center', va='bottom', fontsize=12, fontweight='bold')
+        
+        ax1.set_ylabel('Pmax控制达标率 (%)', fontsize=13, fontweight='bold')
+        ax1.set_title('五种方法Pmax控制达标率对比 (PID+DQN+SAC+TD-MPC2+DPMD)', 
+                     fontsize=14, fontweight='bold')
+        ax1.set_ylim(0, 100)
+        ax1.grid(axis='y', alpha=0.3, linestyle='--')
+        ax1.axhline(y=90, color='red', linestyle='--', alpha=0.5, label='90%目标线')
+        ax1.legend(fontsize=11)
+        
+        plt.tight_layout()
+        accuracy_path = os.path.join(save_dir, 'accuracy_comparison.png')
+        plt.savefig(accuracy_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"  📊 达标率对比图已保存: {accuracy_path}")
+        
+        # ============ 图2：学习曲线对比 ============
+        fig2, ax2 = plt.subplots(figsize=(12, 7))
+        
+        for method in methods:
+            results = comparison.all_results.get(method, [])
+            if results and results[0].reward_curve:
+                # 取第一个种子的学习曲线（或多个种子平均）
+                curve = results[0].reward_curve
+                episodes = list(range(len(curve)))
+                
+                # 平滑处理
+                window = min(10, len(curve) // 10)
+                if window > 1:
+                    smoothed = np.convolve(curve, np.ones(window)/window, mode='valid')
+                    episodes_smooth = episodes[window-1:]
+                else:
+                    smoothed = curve
+                    episodes_smooth = episodes
+                
+                ax2.plot(episodes_smooth, smoothed, label=method, 
+                        color=colors.get(method, '#34495e'), linewidth=2.5, alpha=0.9)
+        
+        ax2.set_xlabel('训练Episode', fontsize=13, fontweight='bold')
+        ax2.set_ylabel('累计奖励', fontsize=13, fontweight='bold')
+        ax2.set_title('五种方法学习曲线对比', fontsize=14, fontweight='bold')
+        ax2.legend(fontsize=12, loc='lower right')
+        ax2.grid(alpha=0.3, linestyle='--')
+        
+        plt.tight_layout()
+        learning_curve_path = os.path.join(save_dir, 'learning_curves.png')
+        plt.savefig(learning_curve_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"  📈 学习曲线对比图已保存: {learning_curve_path}")
+        
+        # ============ 图3：综合性能对比 ============
+        fig3 = plt.figure(figsize=(14, 10))
+        gs = GridSpec(2, 2, figure=fig3, hspace=0.3, wspace=0.3)
+        
+        # 子图1：达标率
+        ax31 = fig3.add_subplot(gs[0, 0])
+        ax31.bar(method_names, accuracies, color=bar_colors, alpha=0.8, edgecolor='black')
+        ax31.set_ylabel('达标率 (%)', fontweight='bold')
+        ax31.set_title('(a) Pmax控制达标率', fontweight='bold')
+        ax31.grid(axis='y', alpha=0.3)
+        
+        # 子图2：平均奖励
+        ax32 = fig3.add_subplot(gs[0, 1])
+        rewards = [avg_metrics[m]['reward'] for m in method_names]
+        ax32.bar(method_names, rewards, color=bar_colors, alpha=0.8, edgecolor='black')
+        ax32.set_ylabel('平均奖励', fontweight='bold')
+        ax32.set_title('(b) 训练终期平均奖励', fontweight='bold')
+        ax32.grid(axis='y', alpha=0.3)
+        
+        # 子图3：收敛速度
+        ax33 = fig3.add_subplot(gs[1, 0])
+        convergences = [avg_metrics[m]['convergence'] for m in method_names]
+        ax33.bar(method_names, convergences, color=bar_colors, alpha=0.8, edgecolor='black')
+        ax33.set_ylabel('收敛Episode', fontweight='bold')
+        ax33.set_title('(c) 收敛速度 (越小越好)', fontweight='bold')
+        ax33.grid(axis='y', alpha=0.3)
+        
+        # 子图4：训练时间
+        ax34 = fig3.add_subplot(gs[1, 1])
+        times = [avg_metrics[m]['time'] for m in method_names]
+        ax34.bar(method_names, times, color=bar_colors, alpha=0.8, edgecolor='black')
+        ax34.set_ylabel('训练时间 (秒)', fontweight='bold')
+        ax34.set_title('(d) 训练耗时', fontweight='bold')
+        ax34.grid(axis='y', alpha=0.3)
+        
+        plt.suptitle('五种控制方法综合性能对比', fontsize=16, fontweight='bold', y=0.995)
+        
+        plt.tight_layout()
+        comprehensive_path = os.path.join(save_dir, 'five_method_comparison.png')
+        plt.savefig(comprehensive_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"  📊 综合对比图已保存: {comprehensive_path}")
+        
+        # 同时保存到visualization_output目录
+        vis_output_dir = 'visualization_output'
+        os.makedirs(vis_output_dir, exist_ok=True)
+        
+        import shutil
+        try:
+            # 复制5方法对比图到visualization_output
+            shutil.copy(accuracy_path, os.path.join(vis_output_dir, 'five_method_accuracy.png'))
+            shutil.copy(learning_curve_path, os.path.join(vis_output_dir, 'five_method_learning_curves.png'))
+            shutil.copy(comprehensive_path, os.path.join(vis_output_dir, 'five_method_comparison.png'))
+            print(f"\n✅ 可视化图表已同步到: {vis_output_dir}/")
+        except Exception as e:
+            print(f"⚠️ 同步到visualization_output失败: {e}")
+        
+        print(f"\n✅ 所有可视化图表已生成在: {save_dir}")
+
+
+# ============================================================
+# 可视化辅助函数
+# ============================================================
+
+def plot_training_progress(method_name: str, reward_curve: List[float], 
+                           save_path: str = None):
+    """
+    绘制单个方法的训练进度图
+    
+    Args:
+        method_name: 方法名称
+        reward_curve: 奖励曲线
+        save_path: 保存路径
+    """
+    if not MATPLOTLIB_AVAILABLE:
+        return
+    
+    plt.figure(figsize=(10, 6))
+    
+    episodes = list(range(len(reward_curve)))
+    
+    # 原始曲线（透明）
+    plt.plot(episodes, reward_curve, alpha=0.3, color='#3498db', linewidth=1)
+    
+    # 平滑曲线
+    window = min(20, len(reward_curve) // 10)
+    if window > 1:
+        smoothed = np.convolve(reward_curve, np.ones(window)/window, mode='valid')
+        episodes_smooth = episodes[window-1:]
+        plt.plot(episodes_smooth, smoothed, color='#e74c3c', linewidth=2.5, label='平滑曲线')
+    
+    plt.xlabel('训练Episode', fontsize=12, fontweight='bold')
+    plt.ylabel('累计奖励', fontsize=12, fontweight='bold')
+    plt.title(f'{method_name} 训练进度', fontsize=14, fontweight='bold')
+    plt.legend(fontsize=11)
+    plt.grid(alpha=0.3, linestyle='--')
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"  📈 训练进度图已保存: {save_path}")
+    
+    plt.close()
 
 
 # ============================================================

@@ -963,19 +963,56 @@ class HybridDiagnoser:
 
 ## 附录A：可视化输出图片列表
 
-| 序号 | 图片文件                                            | 建议插入位置 | 说明            |
-| ---- | --------------------------------------------------- | ------------ | --------------- |
-| 1    | `visualization_output/system_architecture.png`      | 1.1节        | 系统架构图      |
-| 2    | `visualization_output/agent_lifecycle.png`          | 2.2节        | 智能体生命周期  |
-| 3    | `visualization_output/simulation_results.png`       | 3.4节        | 仿真结果与残差  |
-| 4    | `visualization_output/diagnosis_agent_analysis.png` | 4.4节        | 诊断智能体分析  |
-| 5    | `visualization_output/training_process.png`         | 5.5节        | TD-MPC2训练过程 |
-| 6    | `visualization_output/control_agent_analysis.png`   | 5.5节        | 控制智能体分析  |
-| 7    | `visualization_output/performance_comparison.png`   | 6.4节        | 性能对比        |
-| 8    | `results/comparison/learning_curves.png`            | 7.3节        | 学习曲线对比    |
-| 9    | `results/comparison/five_method_comparison.png`     | 8.3节        | 五方法对比      |
-| 10   | `results/comparison/accuracy_comparison.png`        | 8.3节        | 达标率对比      |
-| 11   | `visualization_output/radar_comparison.png`         | 11.2节       | 综合性能雷达图  |
+本系统生成的可视化图片及其对应的CSV数据文件：
+
+| 序号 | 图片文件                                        | 对应CSV数据文件                          | 建议插入位置 | 说明                          |
+| ---- | ----------------------------------------------- | ---------------------------------------- | ------------ | ----------------------------- |
+| 1    | `visualization_output/training_process.png`     | `visualization_data/training_process.csv`, `five_method_learning_curves.csv` | 5.5节        | TD-MPC2训练过程（世界模型损失分解） |
+| 2    | `visualization_output/simulation_results.png`   | `visualization_data/simulation_results.csv`, `five_method_vit_actions.csv` | 3.4节        | 五方法仿真结果对比            |
+| 3    | `visualization_output/performance_comparison.png` | `visualization_data/performance_metrics.csv`, `step_response.csv`, `performance_radar.csv` | 6.4节        | 五方法性能对比                |
+| 4    | `visualization_output/diagnosis_analysis.png`   | `visualization_data/adaptive_threshold.csv`, `classifier_weights.csv`, `fault_type_accuracy.csv`, `detection_delay_stats.csv`, `confusion_matrix.csv`, `roc_curve.csv` | 4.4节        | KAN+PINN混合诊断器分析        |
+| 5    | `visualization_output/control_analysis.png`     | `visualization_data/tdmpc2_architecture.csv`, `horizon_prediction.csv`, `five_method_actions.csv`, `latent_space.csv`, `horizon_effect.csv` | 5.5节        | TD-MPC2控制智能体分析         |
+
+### CSV数据使用说明
+
+所有CSV文件保存在 `visualization_data/` 目录，可直接导入Origin进行图表重绘：
+
+```bash
+# 生成/更新所有CSV数据
+python export_visualization_data.py
+```
+
+**训练过程相关数据：**
+- `training_process.csv`: TD-MPC2训练过程（episode, total_loss, dynamics_loss, reward_loss, value_loss, reward等）
+- `five_method_learning_curves.csv`: 五方法学习曲线对比
+
+**仿真结果相关数据：**
+- `simulation_results.csv`: 五方法Pmax响应对比
+- `five_method_vit_actions.csv`: 五方法VIT控制动作对比
+
+**性能对比相关数据：**
+- `performance_metrics.csv`: 五种方法的关键指标对比
+- `five_method_accuracy.csv`: 达标率对比
+- `step_response.csv`: 阶跃响应对比
+- `performance_radar.csv`: 雷达图归一化数据
+
+**诊断分析相关数据：**
+- `adaptive_threshold.csv`: KAN+PINN混合自适应阈值
+- `classifier_weights.csv`: 诊断器权重分配
+- `fault_type_accuracy.csv`: 故障类型分类准确率
+- `detection_delay_stats.csv`: 检测延迟统计
+- `confusion_matrix.csv`: 5×5诊断混淆矩阵
+- `roc_curve.csv`: 多方法ROC曲线
+
+**控制分析相关数据：**
+- `tdmpc2_architecture.csv`: TD-MPC2网络架构
+- `horizon_prediction.csv`: 多步horizon预测轨迹
+- `five_method_actions.csv`: 五方法控制动作对比
+- `latent_space.csv`: 潜在空间状态分布
+- `horizon_effect.csv`: 规划horizon效果对比
+
+**实验结果：**
+- `results/five_method_summary.csv`: 五方法对比总结表
 
 ---
 

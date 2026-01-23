@@ -137,16 +137,21 @@ def run_full_experiment(config, experiment=None):
     return comparison
 
 
-def generate_report(comparison, save_dir: str):
-    """生成实验报告"""
+def generate_report(comparison, save_dir: str, experiment=None):
+    """生成实验报告和可视化图表"""
     import json
     import numpy as np
     
     print("\n" + "="*70)
-    print("📊 生成实验报告")
+    print("📊 生成实验报告和可视化")
     print("="*70)
     
     os.makedirs(save_dir, exist_ok=True)
+    
+    # 生成可视化图表
+    if experiment is not None:
+        print("\n生成可视化图表...")
+        experiment.plot_comparison_results(comparison, save_dir)
     
     # 生成详细报告
     report_lines = []
@@ -179,7 +184,7 @@ def generate_report(comparison, save_dir: str):
         mean_accuracy = np.mean([r.accuracy_rate for r in results])
         mean_reward = np.mean([r.final_reward for r in results])
         mean_convergence = np.mean([r.convergence_episode for r in results])
-        score = comparison.scores.get(method, 0)
+        score = comparison.scores.get(method, 0) if comparison.scores else 0
         
         report_lines.append(
             f"| {rank} | {method} | {score:.2f} | "
@@ -188,7 +193,8 @@ def generate_report(comparison, save_dir: str):
     
     report_lines.append(f"\n## 结论")
     report_lines.append(f"\n**推荐方法: {comparison.best_method}**")
-    report_lines.append(f"\n综合评分: {comparison.scores.get(comparison.best_method, 0):.2f}")
+    best_score = comparison.scores.get(comparison.best_method, 0) if comparison.scores else 0
+    report_lines.append(f"\n综合评分: {best_score:.2f}")
     
     # 写入报告
     report_path = os.path.join(save_dir, "experiment_report.md")
@@ -208,8 +214,8 @@ def main():
                        help='仅运行快速验证')
     parser.add_argument('--full-only', action='store_true',
                        help='跳过快速验证，直接运行完整实验')
-    parser.add_argument('--episodes', type=int, default=100,
-                       help='训练episodes数量 (默认: 100, 优化后)')
+    parser.add_argument('--episodes', type=int, default=500,
+                       help='训练episodes数量 (默认: 500, 最终实验)')
     parser.add_argument('--steps', type=int, default=200,
                        help='每episode步数 (默认: 200, 优化后)')
     parser.add_argument('--save-dir', type=str, default='results/comparison',
@@ -247,7 +253,21 @@ def main():
     # 运行实验
     if args.quick:
         # 仅快速验证
-        results, _ = run_quick_validation(config)
+        results, experiment = run_quick_validation(config)
+        
+        # 生成快速验证的可视化图表
+        if results and experiment:
+            from experiments.five_method_comparison import ComparisonResult
+            # 将快速验证结果转换为ComparisonResult格式
+            quick_comparison = ComparisonResult(
+                methods=list(results.keys()),
+                all_results={m: [r] for m, r in results.items()},
+                rankings={m: i+1 for i, (m, r) in enumerate(
+                    sorted(results.items(), key=lambda x: -x[1].accuracy_rate)
+                )},
+                best_method=max(results.items(), key=lambda x: x[1].accuracy_rate)[0]
+            )
+            generate_report(quick_comparison, args.save_dir, experiment)
         
         # 打印推荐
         if results:
@@ -256,8 +276,9 @@ def main():
     
     elif args.full_only:
         # 直接完整实验
+        experiment = None
         comparison = run_full_experiment(config)
-        generate_report(comparison, args.save_dir)
+        generate_report(comparison, args.save_dir, experiment)
         print(f"\n🏆 最终推荐方法: {comparison.best_method}")
     
     else:
@@ -269,7 +290,7 @@ def main():
         print("-"*70)
         
         comparison = run_full_experiment(config, experiment)
-        generate_report(comparison, args.save_dir)
+        generate_report(comparison, args.save_dir, experiment)
         print(f"\n🏆 最终推荐方法: {comparison.best_method}")
     
     # 总时间

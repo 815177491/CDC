@@ -1,0 +1,77 @@
+{
+  "methods": [
+    "PID",
+    "DQN",
+    "SAC",
+    "TDMPC2",
+    "DPMD"
+  ],
+  "scores": {
+    "PID": -1.284807932935255,
+    "DQN": 122.29083020748153,
+    "SAC": 121.96042195020584,
+    "TDMPC2": 113.1839150469365,
+    "DPMD": 97.72448288845615
+  },
+  "rankings": {
+    "DQN": 1,
+    "SAC": 2,
+    "TDMPC2": 3,
+    "DPMD": 4,
+    "PID": 5
+  },
+  "best_method": "DQN",
+  "config": {
+    "n_episodes": 500,
+    "max_steps_per_episode": 200,
+    "eval_frequency": 50,
+    "n_eval_episodes": 3,
+    "state_dim": 8,
+    "action_dim": 5,
+    "device": "cuda",
+    "batch_size": 256,
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024
+    ],
+    "save_dir": "results/comparison"
+  },
+  "PID": {
+    "mean_accuracy": 0.004284,
+    "mean_reward": -1148.538931097842,
+    "std_reward": 60.71112408563042,
+    "mean_convergence": 0.0,
+    "mean_training_time": 2.083591413497925
+  },
+  "DQN": {
+    "mean_accuracy": 0.9286,
+    "mean_reward": 1753.2276735827181,
+    "std_reward": 20.489140543850414,
+    "mean_convergence": 9.0,
+    "mean_training_time": 239.80059990882873
+  },
+  "SAC": {
+    "mean_accuracy": 0.928928,
+    "mean_reward": 1762.0677727298432,
+    "std_reward": 16.443180268774615,
+    "mean_convergence": 13.2,
+    "mean_training_time": 695.7448710441589
+  },
+  "TDMPC2": {
+    "mean_accuracy": 0.9275359999999999,
+    "mean_reward": 1727.7858427307287,
+    "std_reward": 21.65751352039133,
+    "mean_convergence": 3.6,
+    "mean_training_time": 1386.1139886856079
+  },
+  "DPMD": {
+    "mean_accuracy": 0.7778500000000002,
+    "mean_reward": 1211.2405200082712,
+    "std_reward": 359.10855279144306,
+    "mean_convergence": 34.6,
+    "mean_training_time": 851.7604416370392
+  }
+}
