@@ -5,6 +5,7 @@
 ### 1. 轴标签字体大小修改 (fontsize=11 → fontsize=14)
 
 #### plot_training_process() 函数
+
 - [x] Line 286: ax1.set_xlabel('训练回合', fontsize=14)
 - [x] Line 287: ax1.set_ylabel('损失值', fontsize=14)
 - [x] Line 306: ax2.set_xlabel('训练回合', fontsize=14)
@@ -19,6 +20,7 @@
 - [x] Line 367: set_tick_fontsize(ax4, 14)
 
 #### plot_simulation_results() 函数
+
 - [x] Line 428: ax1.set_xlabel('时间 (s)', fontsize=14)
 - [x] Line 429: ax1.set_ylabel('Pmax (bar)', fontsize=14)
 - [x] Line 452: ax2.set_xlabel('时间 (s)', fontsize=14)
@@ -35,6 +37,7 @@
 - [x] Line 542: set_tick_fontsize(ax5, 14)
 
 #### plot_performance_comparison() 函数
+
 - [x] Line 583: ax1.set_ylabel('指标值', fontsize=14)
 - [x] Line 603: ax2.set_ylabel('Pmax控制达标率 (%)', fontsize=14)
 - [x] Line 694: ax4.set_xlabel('时间 (s)', fontsize=14)
@@ -44,6 +47,7 @@
 - [x] Line 711: set_tick_fontsize(ax4, 14)
 
 #### plot_diagnosis_agent_analysis() 函数
+
 - [x] Line 769: ax1.set_xlabel('时间步', fontsize=14)
 - [x] Line 770: ax1.set_ylabel('Pmax (bar)', fontsize=14)
 - [x] Line 830: ax3.set_ylabel('分类准确率 (%)', fontsize=14)
@@ -58,6 +62,7 @@
 - [x] Line 971: set_tick_fontsize(ax6, 14)
 
 #### plot_control_agent_analysis() 函数
+
 - [x] Line 1029: ax2.set_xlabel('时间步', fontsize=14)
 - [x] Line 1030: ax2.set_ylabel('Pmax (bar)', fontsize=14)
 - [x] Line 1046: ax3.set_ylabel('奖励分量', fontsize=14)
@@ -81,12 +86,14 @@
 ### 2. 图例字体大小修改 (fontsize=9/8 → fontsize=12)
 
 #### plot_training_process() 函数
+
 - [x] Line 291: ax1.legend(fontsize=12)
 - [x] Line 311: ax2.legend(fontsize=12)
 - [x] Line 333: ax3.legend(fontsize=12)
 - [x] Line 363: ax4.legend(fontsize=12)
 
 #### plot_simulation_results() 函数
+
 - [x] Line 431: ax1.legend(fontsize=12, ncol=3)
 - [x] Line 456: ax2.legend(fontsize=12, loc='upper left')
 - [x] Line 487: ax3.legend(fontsize=12)
@@ -94,17 +101,20 @@
 - [x] Line 542: ax5.legend(handles=..., fontsize=12)
 
 #### plot_performance_comparison() 函数
+
 - [x] Line 588: ax1.legend(fontsize=12)
 - [x] Line 606: ax2.legend(fontsize=12)
 - [x] Line 647: ax3.legend(fontsize=12)
 - [x] Line 697: ax4.legend(fontsize=12)
 
 #### plot_diagnosis_agent_analysis() 函数
+
 - [x] Line 809: ax2.legend(..., fontsize=12)
 - [x] Line 833: ax3.legend(fontsize=12)
 - [x] Line 952: ax6.legend(fontsize=12)
 
 #### plot_control_agent_analysis() 函数
+
 - [x] Line 1032: ax2.legend(fontsize=12)
 - [x] Line 1093: ax4.legend(fontsize=12)
 - [x] Line 1131: ax5.legend(fontsize=12)
@@ -117,12 +127,14 @@
 ### 3. 文字说明字体大小修改 (fontsize=10/8 → fontsize=12)
 
 #### plot_performance_comparison() 函数
+
 - [x] Line 587: ax1.set_xticklabels(metrics, fontsize=12)
 - [x] Line 600: ax2.text(..., fontsize=12)
 - [x] Line 614: ax2.text(..., fontsize=12)
 - [x] Line 645: ax3.set_xticklabels(metrics_radar, fontsize=12)
 
 #### plot_diagnosis_agent_analysis() 函数
+
 - [x] Line 754: ax1.annotate('故障注入', fontsize=12)
 - [x] Line 755: ax1.annotate('TD-MPC2\n控制恢复', fontsize=12)
 - [x] Line 820: ax3.set_xticklabels(fault_types, fontsize=12)
@@ -134,6 +146,7 @@
 - [x] Line 963: ax6.annotate(..., fontsize=12)
 
 #### plot_control_agent_analysis() 函数
+
 - [x] Line 1013: ax1.text(x, y, text, fontsize=12)
 - [x] Line 1020: ax1.annotate('动作 a_t', fontsize=12)
 - [x] Line 1067: ax3.annotate(..., fontsize=12)
@@ -152,27 +165,30 @@
 
 ## 修改统计总结
 
-| 类别 | 修改处数 | 说明 |
-|------|---------|------|
-| 轴标签字体大小 | 42 | fontsize 11→14 |
-| set_tick_fontsize调用 | 21 | 刻度标签设置 |
-| 图例字体大小 | 20 | fontsize 8-10→12 |
-| 文字注释字体大小 | 30 | fontsize 8-11→12 |
-| 标签文字字体大小 | 20 | fontsize 10→12 |
-| Helper函数 | 1 | 函数定义 |
-| **总计** | **134处** | 完全修改 |
+| 类别                  | 修改处数  | 说明             |
+| --------------------- | --------- | ---------------- |
+| 轴标签字体大小        | 42        | fontsize 11→14   |
+| set_tick_fontsize调用 | 21        | 刻度标签设置     |
+| 图例字体大小          | 20        | fontsize 8-10→12 |
+| 文字注释字体大小      | 30        | fontsize 8-11→12 |
+| 标签文字字体大小      | 20        | fontsize 10→12   |
+| Helper函数            | 1         | 函数定义         |
+| **总计**              | **134处** | 完全修改         |
 
 ---
 
 ## 验证结果
 
 ### ✅ 编译验证
+
 ```bash
 python visualize_agents.py
 ```
+
 **结果**: ✅ 成功运行，5个SVG文件生成
 
 ### ✅ SVG文件验证
+
 - [x] training_process.svg：14px刻度标签 + 12px图例
 - [x] simulation_results.svg：14px刻度标签 + 12px图例
 - [x] performance_comparison.svg：14px刻度标签 + 12px图例
@@ -180,6 +196,7 @@ python visualize_agents.py
 - [x] control_analysis.svg：14px刻度标签 + 12px图例
 
 ### ✅ 字体配置验证
+
 - [x] 字体设置：SimSun + Times New Roman
 - [x] SVG字体类型：fonttype='none'（可编辑）
 - [x] 跨平台兼容性：Windows/Linux/Mac

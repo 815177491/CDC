@@ -967,22 +967,22 @@ class HybridDiagnoser:
 
 ### A.1 主要系统可视化
 
-| 序号 | 图片文件                                        | 对应CSV数据文件                          | 建议插入位置 | 说明                          |
-| ---- | ----------------------------------------------- | ---------------------------------------- | ------------ | ----------------------------- |
-| 1    | `visualization_output/training_process.png`     | `visualization_data/training_process.csv`, `five_method_learning_curves.csv` | 5.5节        | TD-MPC2训练过程（世界模型损失分解） |
-| 2    | `visualization_output/simulation_results.png`   | `visualization_data/simulation_results.csv`, `five_method_vit_actions.csv` | 3.4节        | 五方法仿真结果对比            |
-| 3    | `visualization_output/performance_comparison.png` | `visualization_data/performance_metrics.csv`, `step_response.csv`, `performance_radar.csv` | 6.4节        | 五方法性能对比                |
-| 4    | `visualization_output/diagnosis_analysis.png`   | `visualization_data/adaptive_threshold.csv`, `classifier_weights.csv`, `fault_type_accuracy.csv`, `detection_delay_stats.csv`, `confusion_matrix.csv`, `roc_curve.csv` | 4.4节        | KAN+PINN混合诊断器分析        |
-| 5    | `visualization_output/control_analysis.png`     | `visualization_data/tdmpc2_architecture.csv`, `horizon_prediction.csv`, `five_method_actions.csv`, `latent_space.csv`, `horizon_effect.csv` | 5.5节        | TD-MPC2控制智能体分析         |
+| 序号 | 图片文件                                          | 对应CSV数据文件                                                                                                                                                        | 建议插入位置 | 说明                                |
+| ---- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------- |
+| 1    | `visualization_output/training_process.png`       | `visualization_data/training_process.csv`, `five_method_learning_curves.csv`                                                                                           | 5.5节        | TD-MPC2训练过程（世界模型损失分解） |
+| 2    | `visualization_output/simulation_results.png`     | `visualization_data/simulation_results.csv`, `five_method_vit_actions.csv`                                                                                             | 3.4节        | 五方法仿真结果对比                  |
+| 3    | `visualization_output/performance_comparison.png` | `visualization_data/performance_metrics.csv`, `step_response.csv`, `performance_radar.csv`                                                                             | 6.4节        | 五方法性能对比                      |
+| 4    | `visualization_output/diagnosis_analysis.png`     | `visualization_data/adaptive_threshold.csv`, `classifier_weights.csv`, `fault_type_accuracy.csv`, `detection_delay_stats.csv`, `confusion_matrix.csv`, `roc_curve.csv` | 4.4节        | KAN+PINN混合诊断器分析              |
+| 5    | `visualization_output/control_analysis.png`       | `visualization_data/tdmpc2_architecture.csv`, `horizon_prediction.csv`, `five_method_actions.csv`, `latent_space.csv`, `horizon_effect.csv`                            | 5.5节        | TD-MPC2控制智能体分析               |
 
 ### A.2 数据预处理可视化（新增）
 
-| 序号 | 图片文件                                             | 对应CSV数据文件                                                                                       | 建议插入位置 | 说明                          |
-| ---- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------ | ----------------------------- |
-| 6    | `visualization_output/steady_state_selection.png`    | `visualization_data/steady_state_timeseries.csv`, `steady_state_quality.csv`                        | 2.3节        | 稳态工况智能筛选流程          |
-| 7    | `visualization_output/representative_points.png`     | `visualization_data/operating_points_all.csv`, `representative_points.csv`                          | 2.3节        | 代表性工况点提取与验证        |
-| 8    | `visualization_output/data_cleaning.png`             | `visualization_data/data_cleaning_raw.csv`, `data_cleaning_final.csv`                               | 2.2节        | 数据清洗与异常值剔除流程      |
-| 9    | `visualization_output/normalization_correlation.png` | `visualization_data/data_raw.csv`, `data_minmax_normalized.csv`, `data_zscore_normalized.csv`, `correlation_matrix.csv` | 2.2节        | 数据标准化与参数关联分析      |
+| 序号 | 图片文件                                             | 对应CSV数据文件                                                                                                         | 建议插入位置 | 说明                     |
+| ---- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------ | ------------------------ |
+| 6    | `visualization_output/steady_state_selection.png`    | `visualization_data/steady_state_timeseries.csv`, `steady_state_quality.csv`                                            | 2.3节        | 稳态工况智能筛选流程     |
+| 7    | `visualization_output/representative_points.png`     | `visualization_data/operating_points_all.csv`, `representative_points.csv`                                              | 2.3节        | 代表性工况点提取与验证   |
+| 8    | `visualization_output/data_cleaning.png`             | `visualization_data/data_cleaning_raw.csv`, `data_cleaning_final.csv`                                                   | 2.2节        | 数据清洗与异常值剔除流程 |
+| 9    | `visualization_output/normalization_correlation.png` | `visualization_data/data_raw.csv`, `data_minmax_normalized.csv`, `data_zscore_normalized.csv`, `correlation_matrix.csv` | 2.2节        | 数据标准化与参数关联分析 |
 
 **数据预处理可视化说明：**
 
@@ -1013,6 +1013,7 @@ class HybridDiagnoser:
    - PCA主成分降维可视化
 
 **生成脚本：**
+
 ```bash
 # 生成数据预处理可视化
 python visualize_data_preprocessing.py
@@ -1031,20 +1032,24 @@ python visualize_data_preprocessing.py
 ```
 
 **训练过程相关数据：**
+
 - `training_process.csv`: TD-MPC2训练过程（episode, total_loss, dynamics_loss, reward_loss, value_loss, reward等）
 - `five_method_learning_curves.csv`: 五方法学习曲线对比
 
 **仿真结果相关数据：**
+
 - `simulation_results.csv`: 五方法Pmax响应对比
 - `five_method_vit_actions.csv`: 五方法VIT控制动作对比
 
 **性能对比相关数据：**
+
 - `performance_metrics.csv`: 五种方法的关键指标对比
 - `five_method_accuracy.csv`: 达标率对比
 - `step_response.csv`: 阶跃响应对比
 - `performance_radar.csv`: 雷达图归一化数据
 
 **诊断分析相关数据：**
+
 - `adaptive_threshold.csv`: KAN+PINN混合自适应阈值
 - `classifier_weights.csv`: 诊断器权重分配
 - `fault_type_accuracy.csv`: 故障类型分类准确率
@@ -1053,6 +1058,7 @@ python visualize_data_preprocessing.py
 - `roc_curve.csv`: 多方法ROC曲线
 
 **控制分析相关数据：**
+
 - `tdmpc2_architecture.csv`: TD-MPC2网络架构
 - `horizon_prediction.csv`: 多步horizon预测轨迹
 - `five_method_actions.csv`: 五方法控制动作对比
@@ -1060,6 +1066,7 @@ python visualize_data_preprocessing.py
 - `horizon_effect.csv`: 规划horizon效果对比
 
 **数据预处理相关数据（新增）：**
+
 - `steady_state_timeseries.csv`: 稳态筛选时间序列数据（time, rpm, P_max, rpm_std, is_steady）
 - `steady_state_quality.csv`: 稳态段质量评分（segment_id, time_center, quality_score）
 - `operating_points_all.csv`: 全部工况点数据（rpm, P_max, P_comp, T_exh）
@@ -1072,6 +1079,7 @@ python visualize_data_preprocessing.py
 - `correlation_matrix.csv`: 参数相关性矩阵
 
 **实验结果：**
+
 - `results/five_method_summary.csv`: 五方法对比总结表
 
 ---
