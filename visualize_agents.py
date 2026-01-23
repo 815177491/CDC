@@ -26,15 +26,40 @@ import json
 import os
 from datetime import datetime
 
-# 设置中文字体
-plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+# 中文字体设置 - 宋体; 英文字体设置 - Times New Roman
+plt.rcParams['font.sans-serif'] = ['SimSun', 'DejaVu Sans']      # 中文采用宋体
+plt.rcParams['font.serif'] = ['Times New Roman', 'SimSun']        # 衬线字体配置
+plt.rcParams['font.monospace'] = ['Courier New']                  # 等宽字体
 plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams['figure.dpi'] = 100
 plt.rcParams['savefig.dpi'] = 150
+# SVG文本保留为可编辑文字（不转换为路径）
+plt.rcParams['svg.fonttype'] = 'none'
+
+# 确保系统能找到宋体和Times New Roman字体
+import matplotlib.font_manager as fm
+try:
+    simsun_path = 'C:\\Windows\\Fonts\\simsun.ttc'
+    times_path = 'C:\\Windows\\Fonts\\times.ttf'
+    if os.path.exists(simsun_path):
+        fm.fontManager.addfont(simsun_path)
+    if os.path.exists(times_path):
+        fm.fontManager.addfont(times_path)
+except:
+    pass
 
 # 创建输出目录
 OUTPUT_DIR = 'visualization_output'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def set_tick_fontsize(ax, fontsize=14):
+    """设置坐标轴刻度标签的字体大小"""
+    ax.tick_params(axis='both', which='major', labelsize=fontsize)
+    for label in ax.get_xticklabels():
+        label.set_fontsize(fontsize)
+    for label in ax.get_yticklabels():
+        label.set_fontsize(fontsize)
 
 
 class AgentVisualizer:
@@ -229,8 +254,8 @@ class AgentVisualizer:
             epsilon = max(0.05, 1.0 * (0.995 ** ep))
             self.training_data['epsilon'].append(epsilon)
             
-            # 累计奖励 - 逐渐上升
-            reward = -50 + 60 * (1 - np.exp(-0.025 * ep)) + np.random.normal(0, 5)
+            # 累计奖励 - 逐渐上升 (与其他方法同一数量级)
+            reward = -200 + 1950 * (1 - np.exp(-0.012 * ep)) + np.random.normal(0, 80)
             self.training_data['reward'].append(reward)
             
             # 每回合步数
@@ -258,12 +283,13 @@ class AgentVisualizer:
         ax1.plot(episodes, loss_reward, color=self.colors['warning'], alpha=0.6, linewidth=1, label='奖励预测损失')
         ax1.plot(episodes, loss_value, color=self.colors['secondary'], alpha=0.6, linewidth=1, label='价值函数损失')
         
-        ax1.set_xlabel('训练回合', fontsize=11)
-        ax1.set_ylabel('损失值', fontsize=11)
+        ax1.set_xlabel('训练回合', fontsize=14)
+        ax1.set_ylabel('损失值', fontsize=14)
         ax1.set_title('(a) TD-MPC2世界模型损失分解', fontsize=12, fontweight='bold')
         ax1.set_yscale('log')
         ax1.grid(True, alpha=0.3)
-        ax1.legend(fontsize=9, loc='upper right')
+        ax1.legend(fontsize=12, loc='upper right')
+        set_tick_fontsize(ax1, 14)
         
         # 2. 规划性能 vs 训练进度
         ax2 = fig.add_subplot(gs[0, 1])
@@ -278,12 +304,13 @@ class AgentVisualizer:
         ax2.axhline(y=89.7, color='red', linestyle='--', alpha=0.7, linewidth=2, label='最终达标率 89.7%')
         ax2.axhline(y=90, color='gold', linestyle=':', alpha=0.5, label='目标 90%')
         
-        ax2.set_xlabel('训练回合', fontsize=11)
-        ax2.set_ylabel('规划达标率 (%)', fontsize=11)
+        ax2.set_xlabel('训练回合', fontsize=14)
+        ax2.set_ylabel('规划达标率 (%)', fontsize=14)
         ax2.set_title('(b) TD-MPC2规划性能进化', fontsize=12, fontweight='bold')
         ax2.set_ylim(0, 100)
         ax2.grid(True, alpha=0.3)
-        ax2.legend(fontsize=9)
+        ax2.legend(fontsize=12)
+        set_tick_fontsize(ax2, 14)
         
         # 3. 模型预测误差随训练降低
         ax3 = fig.add_subplot(gs[1, 0])
@@ -301,11 +328,12 @@ class AgentVisualizer:
         ax3.plot(episodes, h2_error, color=self.colors['warning'], linewidth=1.5)
         ax3.plot(episodes, h4_error, color=self.colors['danger'], linewidth=1.5)
         
-        ax3.set_xlabel('训练回合', fontsize=11)
-        ax3.set_ylabel('预测误差 (bar)', fontsize=11)
+        ax3.set_xlabel('训练回合', fontsize=14)
+        ax3.set_ylabel('预测误差 (bar)', fontsize=14)
         ax3.set_title('(c) 多步Horizon预测误差收敛', fontsize=12, fontweight='bold')
         ax3.grid(True, alpha=0.3)
-        ax3.legend(fontsize=9, loc='upper right')
+        ax3.legend(fontsize=12, loc='upper right')
+        set_tick_fontsize(ax3, 14)
         
         # 4. 累计奖励曲线 (五种方法对比)
         ax4 = fig.add_subplot(gs[1, 1])
@@ -331,16 +359,17 @@ class AgentVisualizer:
         ax4.axhline(y=np.mean(pid_reward), color=colors_method[0], linestyle=':', alpha=0.5, label='PID')
         ax4.axhline(y=0, color=self.colors['dark'], linestyle='-', alpha=0.3)
         
-        ax4.set_xlabel('训练回合', fontsize=11)
-        ax4.set_ylabel('累计奖励', fontsize=11)
+        ax4.set_xlabel('训练回合', fontsize=14)
+        ax4.set_ylabel('累计奖励', fontsize=14)
         ax4.set_title('(d) 五种方法学习曲线对比', fontsize=12, fontweight='bold')
         ax4.grid(True, alpha=0.3)
-        ax4.legend(fontsize=9, loc='lower right')
+        ax4.legend(fontsize=12, loc='lower right')
+        set_tick_fontsize(ax4, 14)
         
         plt.suptitle('TD-MPC2控制智能体训练过程', fontsize=14, fontweight='bold', y=1.02)
         
-        save_path = os.path.join(OUTPUT_DIR, 'training_process.png')
-        plt.savefig(save_path, bbox_inches='tight', facecolor='white')
+        save_path = os.path.join(OUTPUT_DIR, 'training_process.svg')
+        plt.savefig(save_path, bbox_inches='tight', facecolor='white', format='svg')
         # plt.show()  # 非交互模式
         print(f"训练过程图已保存: {save_path}")
         
@@ -400,11 +429,12 @@ class AgentVisualizer:
             ax1.axvline(x=fault_time, color=self.colors['danger'], 
                        linestyle='--', alpha=0.7, label=f'故障注入 (t={fault_time}s)')
         
-        ax1.set_xlabel('时间 (s)', fontsize=11)
-        ax1.set_ylabel('Pmax (bar)', fontsize=11)
+        ax1.set_xlabel('时间 (s)', fontsize=14)
+        ax1.set_ylabel('Pmax (bar)', fontsize=14)
         ax1.set_title('(a) 五种方法Pmax控制响应对比', fontsize=12, fontweight='bold')
-        ax1.legend(loc='upper right', fontsize=9, ncol=3)
+        ax1.legend(loc='upper right', fontsize=12, ncol=3)
         ax1.grid(True, alpha=0.3)
+        set_tick_fontsize(ax1, 14)
         
         # 2. 故障诊断时间线 (KAN+PINN混合诊断器)
         ax2 = fig.add_subplot(gs[1, 0])
@@ -424,12 +454,13 @@ class AgentVisualizer:
         if fault_time:
             ax2.axvline(x=fault_time, color=self.colors['danger'], linestyle='--', alpha=0.5)
         
-        ax2.set_xlabel('时间 (s)', fontsize=11)
-        ax2.set_ylabel('诊断置信度', fontsize=11)
+        ax2.set_xlabel('时间 (s)', fontsize=14)
+        ax2.set_ylabel('诊断置信度', fontsize=14)
         ax2.set_title('(b) KAN+PINN混合诊断器置信度', fontsize=12, fontweight='bold')
         ax2.set_ylim(0, 1.1)
-        ax2.legend(fontsize=8, loc='upper left')
+        ax2.legend(fontsize=12, loc='upper left')
         ax2.grid(True, alpha=0.3)
+        set_tick_fontsize(ax2, 14)
         
         # 3. VIT控制动作 - 五种方法对比
         ax3 = fig.add_subplot(gs[1, 1])
@@ -456,11 +487,12 @@ class AgentVisualizer:
         if fault_time:
             ax3.axvline(x=fault_time, color=self.colors['danger'], linestyle='--', alpha=0.5)
         
-        ax3.set_xlabel('时间 (s)', fontsize=11)
-        ax3.set_ylabel('VIT调整 (°CA)', fontsize=11)
+        ax3.set_xlabel('时间 (s)', fontsize=14)
+        ax3.set_ylabel('VIT调整 (°CA)', fontsize=14)
         ax3.set_title('(c) 五种方法VIT控制动作对比', fontsize=12, fontweight='bold')
-        ax3.legend(loc='lower left', fontsize=8)
+        ax3.legend(loc='lower left', fontsize=12)
         ax3.grid(True, alpha=0.3)
+        set_tick_fontsize(ax3, 14)
         
         # 4. Pmax误差随时间变化 - 五种方法对比
         ax4 = fig.add_subplot(gs[2, 0])
@@ -481,11 +513,12 @@ class AgentVisualizer:
         ax4.axhline(y=2.0, color='green', linestyle='--', alpha=0.7, label='±2bar目标')
         ax4.fill_between(time, 0, 2, alpha=0.1, color='green')
         
-        ax4.set_xlabel('时间 (s)', fontsize=11)
-        ax4.set_ylabel('Pmax误差 (bar)', fontsize=11)
+        ax4.set_xlabel('时间 (s)', fontsize=14)
+        ax4.set_ylabel('Pmax误差 (bar)', fontsize=14)
         ax4.set_title('(d) 五种方法Pmax控制误差对比', fontsize=12, fontweight='bold')
-        ax4.legend(loc='upper right', fontsize=8)
+        ax4.legend(loc='upper right', fontsize=12)
         ax4.grid(True, alpha=0.3)
+        set_tick_fontsize(ax4, 14)
         
         # 5. 系统状态时间线
         ax5 = fig.add_subplot(gs[2, 1])
@@ -498,19 +531,20 @@ class AgentVisualizer:
                     self.colors['danger']][modes[i]]
             ax5.axvspan(time[i], time[i+1], alpha=0.7, color=color)
         
-        ax5.set_xlabel('时间 (s)', fontsize=11)
+        ax5.set_xlabel('时间 (s)', fontsize=14)
         ax5.set_yticks([])
         ax5.set_title('(e) 系统控制模式时间线', fontsize=12, fontweight='bold')
         
         normal_p = mpatches.Patch(color=self.colors['success'], label='NORMAL')
         fault_p = mpatches.Patch(color=self.colors['warning'], label='FAULT_RESPONSE')
         emergency_p = mpatches.Patch(color=self.colors['danger'], label='EMERGENCY')
-        ax5.legend(handles=[normal_p, fault_p, emergency_p], loc='upper center', ncol=3)
+        ax5.legend(handles=[normal_p, fault_p, emergency_p], loc='upper center', ncol=3, fontsize=12)
+        set_tick_fontsize(ax5, 14)
         
         plt.suptitle('五种方法仿真结果对比 (TD-MPC2 + KAN/PINN诊断)', fontsize=14, fontweight='bold', y=1.01)
         
-        save_path = os.path.join(OUTPUT_DIR, 'simulation_results.png')
-        plt.savefig(save_path, bbox_inches='tight', facecolor='white')
+        save_path = os.path.join(OUTPUT_DIR, 'simulation_results.svg')
+        plt.savefig(save_path, bbox_inches='tight', facecolor='white', format='svg')
         print(f"仿真结果图已保存: {save_path}")
         
         return fig
@@ -555,13 +589,14 @@ class AgentVisualizer:
                           label=method, color=colors_bar[i], alpha=0.85, edgecolor='black',
                           linewidth=2 if method == 'TD-MPC2' else 1)
         
-        ax1.set_ylabel('指标值', fontsize=11, fontweight='bold')
+        ax1.set_ylabel('指标值', fontsize=14, fontweight='bold')
         ax1.set_title('(a) 关键性能指标对比\n(检测延迟、超调量、稳态误差、响应时间、假阳性率)', 
                      fontsize=12, fontweight='bold')
         ax1.set_xticks(x)
-        ax1.set_xticklabels(metrics, rotation=15, ha='right', fontsize=10)
-        ax1.legend(loc='upper right', fontsize=9)
+        ax1.set_xticklabels(metrics, rotation=15, ha='right', fontsize=12)
+        ax1.legend(loc='upper right', fontsize=12)
         ax1.grid(True, alpha=0.3, axis='y')
+        set_tick_fontsize(ax1, 14)
         
         # ============ (b) 五种方法达标率对比 ============
         ax2 = fig.add_subplot(gs[0, 1])
@@ -572,13 +607,14 @@ class AgentVisualizer:
         for bar, acc in zip(bars2, accuracy):
             height = bar.get_height()
             ax2.text(bar.get_x() + bar.get_width()/2., height + 1,
-                    f'{acc:.1f}%', ha='center', va='bottom', fontsize=11, fontweight='bold')
+                    f'{acc:.1f}%', ha='center', va='bottom', fontsize=12, fontweight='bold')
         
         ax2.axhline(y=90, color='red', linestyle='--', alpha=0.6, linewidth=2, label='90%目标线')
-        ax2.set_ylabel('Pmax控制达标率 (%)', fontsize=12, fontweight='bold')
+        ax2.set_ylabel('Pmax控制达标率 (%)', fontsize=14, fontweight='bold')
         ax2.set_title('(b) 五种方法达标率对比', fontsize=12, fontweight='bold')
         ax2.set_ylim(0, 100)
-        ax2.legend(loc='upper left', fontsize=10)
+        ax2.legend(loc='upper left', fontsize=12)
+        set_tick_fontsize(ax2, 14)
         ax2.grid(axis='y', alpha=0.3)
         
         # 高亮最佳方法 (TD-MPC2)
@@ -617,9 +653,9 @@ class AgentVisualizer:
                     label=method, linestyle='-' if method == 'TD-MPC2' else '--')
         
         ax3.set_xticks(angles[:-1])
-        ax3.set_xticklabels(metrics_radar, fontsize=10)
+        ax3.set_xticklabels(metrics_radar, fontsize=12)
         ax3.set_title('(c) 综合性能雷达图\n(越外围越好)', fontsize=12, fontweight='bold', pad=20)
-        ax3.legend(loc='lower right', bbox_to_anchor=(1.35, 0), fontsize=9)
+        ax3.legend(loc='lower right', bbox_to_anchor=(1.35, 0), fontsize=12)
         
         # ============ (d) 故障响应阶跃对比 ============
         ax4 = fig.add_subplot(gs[1, 1])
@@ -666,19 +702,20 @@ class AgentVisualizer:
         ax4.axhline(y=0.95, color='orange', linestyle=':', alpha=0.5)
         ax4.fill_between(t_step, 0.95, 1.05, alpha=0.1, color='green')
         
-        ax4.set_xlabel('时间 (s)', fontsize=11)
-        ax4.set_ylabel('归一化响应', fontsize=11)
+        ax4.set_xlabel('时间 (s)', fontsize=14)
+        ax4.set_ylabel('归一化响应', fontsize=14)
         ax4.set_title('(d) 故障响应阶跃对比', fontsize=12, fontweight='bold')
-        ax4.legend(loc='lower right', fontsize=9)
+        ax4.legend(loc='lower right', fontsize=12)
         ax4.grid(True, alpha=0.3)
         ax4.set_ylim(0, 1.3)
+        set_tick_fontsize(ax4, 14)
         ax4.set_xlim(0, 10)
         
         plt.suptitle('五种控制方法综合性能对比 (PID+DQN+SAC+TD-MPC2+DPMD)', 
                     fontsize=15, fontweight='bold', y=1.01)
         
-        save_path = os.path.join(OUTPUT_DIR, 'performance_comparison.png')
-        plt.savefig(save_path, bbox_inches='tight', facecolor='white')
+        save_path = os.path.join(OUTPUT_DIR, 'performance_comparison.svg')
+        plt.savefig(save_path, bbox_inches='tight', facecolor='white', format='svg')
         print(f"性能对比图已保存: {save_path}")
         
         return fig
@@ -726,15 +763,16 @@ class AgentVisualizer:
                    alpha=0.8, linewidth=1.5)
         ax1.axvline(x=80, color=self.colors['success'], linestyle='--', 
                    alpha=0.8, linewidth=1.5)
-        ax1.annotate('故障注入', xy=(40, 148), fontsize=8, color=self.colors['warning'])
-        ax1.annotate('TD-MPC2\n控制恢复', xy=(80, 148), fontsize=8, color=self.colors['success'])
+        ax1.annotate('故障注入', xy=(40, 148), fontsize=12, color=self.colors['warning'])
+        ax1.annotate('TD-MPC2\n控制恢复', xy=(80, 148), fontsize=12, color=self.colors['success'])
         
-        ax1.set_xlabel('时间步', fontsize=10)
-        ax1.set_ylabel('Pmax (bar)', fontsize=10)
-        ax1.set_title('(a) 自适应阈值学习', fontsize=11, fontweight='bold')
-        ax1.legend(fontsize=7, loc='lower right')
+        ax1.set_xlabel('时间步', fontsize=14)
+        ax1.set_ylabel('Pmax (bar)', fontsize=14)
+        ax1.set_title('(a) 自适应阈值学习', fontsize=12, fontweight='bold')
+        ax1.legend(fontsize=12, loc='lower right')
         ax1.grid(True, alpha=0.3)
         ax1.set_ylim([125, 155])
+        set_tick_fontsize(ax1, 14)
         
         # ========== (b) KAN+PINN混合诊断器权重 ==========
         ax2 = fig.add_subplot(gs[0, 1])
@@ -771,9 +809,9 @@ class AgentVisualizer:
         legend_colors = colors_outer + colors_inner
         legend_handles = [plt.Rectangle((0,0),1,1, facecolor=c) for c in legend_colors]
         ax2.legend(legend_handles, legend_labels, loc='center left', 
-                  bbox_to_anchor=(1.0, 0.5), fontsize=7)
+                  bbox_to_anchor=(1.0, 0.5), fontsize=12)
         
-        ax2.set_title('(b) KAN+PINN混合诊断器权重', fontsize=11, fontweight='bold')
+        ax2.set_title('(b) KAN+PINN混合诊断器权重', fontsize=12, fontweight='bold')
         
         # ========== (c) 故障类型诊断分类 ==========
         ax3 = fig.add_subplot(gs[0, 2])
@@ -791,13 +829,14 @@ class AgentVisualizer:
         bars2 = ax3.bar(x, pinn_acc, width, label='PINN', color=self.colors['secondary'], alpha=0.8)
         bars3 = ax3.bar(x + width, hybrid_acc, width, label='KAN+PINN', color=self.colors['success'], alpha=0.9)
         
-        ax3.set_ylabel('分类准确率 (%)', fontsize=10)
-        ax3.set_title('(c) 故障类型诊断分类', fontsize=11, fontweight='bold')
+        ax3.set_ylabel('分类准确率 (%)', fontsize=14)
+        ax3.set_title('(c) 故障类型诊断分类', fontsize=12, fontweight='bold')
         ax3.set_xticks(x)
-        ax3.set_xticklabels(fault_types, rotation=25, ha='right', fontsize=8)
-        ax3.legend(fontsize=8, loc='lower left')
+        ax3.set_xticklabels(fault_types, rotation=25, ha='right', fontsize=12)
+        ax3.legend(fontsize=12, loc='lower left')
         ax3.grid(True, alpha=0.3, axis='y')
         ax3.set_ylim([75, 102])
+        set_tick_fontsize(ax3, 14)
         
         # 添加数值标注
         for bars in [bars3]:  # 只标注混合方法
@@ -827,18 +866,19 @@ class AgentVisualizer:
         bars[-1].set_edgecolor(self.colors['success'])
         bars[-1].set_linewidth(2)
         
-        ax4.set_ylabel('检测延迟 (秒)', fontsize=10)
-        ax4.set_title('(d) 故障检测延迟分类', fontsize=11, fontweight='bold')
+        ax4.set_ylabel('检测延迟 (秒)', fontsize=14)
+        ax4.set_title('(d) 故障检测延迟分类', fontsize=12, fontweight='bold')
         ax4.grid(True, alpha=0.3, axis='y')
+        set_tick_fontsize(ax4, 14)
         
         # 添加降低百分比
         for i, (bar, delay) in enumerate(zip(bars, delays_mean)):
             ax4.annotate(f'{delay:.2f}s', xy=(bar.get_x() + bar.get_width()/2, delay + delays_std[i] + 0.15),
-                        ha='center', fontsize=8, fontweight='bold')
+                        ha='center', fontsize=12, fontweight='bold')
         
         # 添加改进幅度标注
         ax4.annotate('降低77.6%', xy=(5, 0.85), xytext=(4.2, 2.0),
-                    fontsize=9, color=self.colors['success'], fontweight='bold',
+                    fontsize=12, color=self.colors['success'], fontweight='bold',
                     arrowprops=dict(arrowstyle='->', color=self.colors['success']))
         
         # ========== (e) 诊断混淆矩阵 ==========
@@ -863,11 +903,11 @@ class AgentVisualizer:
         classes = ['正常', '正时', '油量', '压缩', '多故障']
         ax5.set_xticks(np.arange(5))
         ax5.set_yticks(np.arange(5))
-        ax5.set_xticklabels(classes, fontsize=9)
-        ax5.set_yticklabels(classes, fontsize=9)
-        ax5.set_xlabel('预测类别', fontsize=10)
-        ax5.set_ylabel('真实类别', fontsize=10)
-        ax5.set_title(f'(e) 诊断混淆矩阵 (准确率: {accuracy:.1f}%)', fontsize=11, fontweight='bold')
+        ax5.set_xticklabels(classes, fontsize=12)
+        ax5.set_yticklabels(classes, fontsize=12)
+        ax5.set_xlabel('预测类别', fontsize=14)
+        ax5.set_ylabel('真实类别', fontsize=14)
+        ax5.set_title(f'(e) 诊断混淆矩阵 (准确率: {accuracy:.1f}%)', fontsize=12, fontweight='bold')
         
         # 添加数值标注
         for i in range(5):
@@ -875,11 +915,11 @@ class AgentVisualizer:
                 value = confusion[i, j]
                 text_color = "white" if value > 20 else "black"
                 ax5.text(j, i, value, ha="center", va="center", 
-                        color=text_color, fontsize=10, fontweight='bold')
+                        color=text_color, fontsize=12, fontweight='bold')
         
         # 添加colorbar
         cbar = plt.colorbar(im, ax=ax5, fraction=0.046, pad=0.04)
-        cbar.set_label('样本数', fontsize=9)
+        cbar.set_label('样本数', fontsize=12)
         
         # ========== (f) ROC曲线 ==========
         ax6 = fig.add_subplot(gs[1, 2])
@@ -918,22 +958,23 @@ class AgentVisualizer:
         ax6.annotate(f'最佳点\n({fpr[best_idx]:.2f}, {tpr_hybrid[best_idx]:.2f})',
                     xy=(fpr[best_idx], tpr_hybrid[best_idx]),
                     xytext=(fpr[best_idx]+0.15, tpr_hybrid[best_idx]-0.15),
-                    fontsize=8, color=self.colors['danger'],
+                    fontsize=12, color=self.colors['danger'],
                     arrowprops=dict(arrowstyle='->', color=self.colors['danger']))
         
-        ax6.set_xlabel('假阳性率 (FPR)', fontsize=10)
-        ax6.set_ylabel('真阳性率 (TPR)', fontsize=10)
-        ax6.set_title('(f) ROC曲线对比', fontsize=11, fontweight='bold')
-        ax6.legend(fontsize=8, loc='lower right')
+        ax6.set_xlabel('假阳性率 (FPR)', fontsize=14)
+        ax6.set_ylabel('真阳性率 (TPR)', fontsize=14)
+        ax6.set_title('(f) ROC曲线对比', fontsize=12, fontweight='bold')
+        ax6.legend(fontsize=12, loc='lower right')
         ax6.grid(True, alpha=0.3)
         ax6.set_xlim(-0.02, 1.02)
         ax6.set_ylim(-0.02, 1.02)
+        set_tick_fontsize(ax6, 14)
         
         plt.suptitle('KAN+PINN混合诊断器性能分析 (配合TD-MPC2控制)', 
                     fontsize=14, fontweight='bold', y=1.01)
         
-        save_path = os.path.join(OUTPUT_DIR, 'diagnosis_analysis.png')
-        plt.savefig(save_path, bbox_inches='tight', facecolor='white', dpi=150)
+        save_path = os.path.join(OUTPUT_DIR, 'diagnosis_analysis.svg')
+        plt.savefig(save_path, bbox_inches='tight', facecolor='white', format='svg')
         # plt.show()  # 非交互模式
         print(f"诊断分析图已保存: {save_path}")
         
@@ -967,7 +1008,7 @@ class AgentVisualizer:
             rect = plt.Rectangle((x-0.7, y-0.8), 1.4, 1.6, 
                                  facecolor=color, alpha=0.7, edgecolor='black', linewidth=2)
             ax1.add_patch(rect)
-            ax1.text(x, y, text, ha='center', va='center', fontsize=9, fontweight='bold')
+            ax1.text(x, y, text, ha='center', va='center', fontsize=12, fontweight='bold')
         
         # 绘制箭头
         for i in range(len(boxes)-1):
@@ -976,11 +1017,11 @@ class AgentVisualizer:
                         arrowprops=dict(arrowstyle='->', color='black', lw=2))
         
         # 添加动作输入
-        ax1.annotate('动作 a_t', xy=(5, 3.5), fontsize=9, ha='center', fontweight='bold')
+        ax1.annotate('动作 a_t', xy=(5, 3.5), fontsize=12, ha='center', fontweight='bold')
         ax1.annotate('', xy=(5, 4.2), xytext=(5, 3.7),
                     arrowprops=dict(arrowstyle='->', color='black', lw=1.5))
         
-        ax1.set_title('(a) TD-MPC2世界模型架构', fontsize=11, fontweight='bold')
+        ax1.set_title('(a) TD-MPC2世界模型架构', fontsize=12, fontweight='bold')
         
         # 2. 模型预测轨迹可视化 (TD-MPC2核心特性)
         ax2 = fig.add_subplot(gs[0, 1])
@@ -1001,11 +1042,12 @@ class AgentVisualizer:
             ax2.plot(np.arange(h+1), pred, '--', color=c, linewidth=2, 
                     marker='s', markersize=4, alpha=0.8, label=f'H={h}预测')
         
-        ax2.set_xlabel('时间步', fontsize=10)
-        ax2.set_ylabel('Pmax (bar)', fontsize=10)
-        ax2.set_title('(b) 多步Horizon预测轨迹', fontsize=11, fontweight='bold')
-        ax2.legend(fontsize=8, loc='lower right')
+        ax2.set_xlabel('时间步', fontsize=14)
+        ax2.set_ylabel('Pmax (bar)', fontsize=14)
+        ax2.set_title('(b) 多步Horizon预测轨迹', fontsize=12, fontweight='bold')
+        ax2.legend(fontsize=12, loc='lower right')
         ax2.grid(True, alpha=0.3)
+        set_tick_fontsize(ax2, 14)
         
         # 3. 奖励函数分解 (Pmax控制专用)
         ax3 = fig.add_subplot(gs[0, 2])
@@ -1018,15 +1060,16 @@ class AgentVisualizer:
         
         bars = ax3.bar(components, values, color=colors_reward, alpha=0.85, edgecolor='black')
         ax3.axhline(y=0, color=self.colors['dark'], linewidth=1)
-        ax3.set_ylabel('奖励分量', fontsize=10)
-        ax3.set_title('(c) TD-MPC2奖励函数分解', fontsize=11, fontweight='bold')
+        ax3.set_ylabel('奖励分量', fontsize=14)
+        ax3.set_title('(c) TD-MPC2奖励函数分解', fontsize=12, fontweight='bold')
         ax3.grid(True, alpha=0.3, axis='y')
+        set_tick_fontsize(ax3, 14)
         
         for bar, val in zip(bars, values):
             ax3.annotate(f'{val:+.1f}', 
                         xy=(bar.get_x() + bar.get_width()/2, val),
                         xytext=(0, 3 if val > 0 else -12),
-                        textcoords="offset points", ha='center', fontsize=10, fontweight='bold')
+                        textcoords="offset points", ha='center', fontsize=12, fontweight='bold')
         
         # 4. 五种方法控制动作对比
         ax4 = fig.add_subplot(gs[1, 0])
@@ -1062,11 +1105,12 @@ class AgentVisualizer:
         ax4.plot(t, tdmpc2_action, color=colors_method[3], linewidth=2.5, label='TD-MPC2 ★')
         ax4.plot(t, dpmd_action, color=colors_method[4], linewidth=1.5, linestyle='--', alpha=0.8, label='DPMD')
         
-        ax4.set_xlabel('时间步', fontsize=10)
-        ax4.set_ylabel('VIT调整 (°CA)', fontsize=10)
-        ax4.set_title('(d) 五种方法控制动作对比', fontsize=11, fontweight='bold')
-        ax4.legend(fontsize=8, loc='upper right')
+        ax4.set_xlabel('时间步', fontsize=14)
+        ax4.set_ylabel('VIT调整 (°CA)', fontsize=14)
+        ax4.set_title('(d) 五种方法控制动作对比', fontsize=12, fontweight='bold')
+        ax4.legend(fontsize=12, loc='upper right')
         ax4.grid(True, alpha=0.3)
+        set_tick_fontsize(ax4, 14)
         
         # 5. 潜在空间动态可视化 (TD-MPC2核心)
         ax5 = fig.add_subplot(gs[1, 1])
@@ -1089,12 +1133,13 @@ class AgentVisualizer:
             Line2D([0], [0], marker='o', color='w', markerfacecolor='#e74c3c', markersize=10, label='待优化'),
             Line2D([0], [0], marker='o', color='w', markerfacecolor='#f39c12', markersize=10, label='边界状态'),
         ]
-        ax5.legend(handles=legend_elements, fontsize=8, loc='upper right')
+        ax5.legend(handles=legend_elements, fontsize=12, loc='upper right')
         
-        ax5.set_xlabel('潜在维度1 (z1)', fontsize=10)
-        ax5.set_ylabel('潜在维度2 (z2)', fontsize=10)
-        ax5.set_title('(e) TD-MPC2潜在空间状态分布', fontsize=11, fontweight='bold')
+        ax5.set_xlabel('潜在维度1 (z1)', fontsize=14)
+        ax5.set_ylabel('潜在维度2 (z2)', fontsize=14)
+        ax5.set_title('(e) TD-MPC2潜在空间状态分布', fontsize=12, fontweight='bold')
         ax5.grid(True, alpha=0.3)
+        set_tick_fontsize(ax5, 14)
         
         # 6. 规划Horizon效果对比
         ax6 = fig.add_subplot(gs[1, 2])
@@ -1110,27 +1155,28 @@ class AgentVisualizer:
         line_time = ax6_twin.plot(horizons_test, time_h, 'o-', 
                                   color=self.colors['danger'], linewidth=2, markersize=8, label='计算时间')
         
-        ax6.set_xlabel('规划Horizon (H)', fontsize=10)
-        ax6.set_ylabel('达标率 (%)', fontsize=10, color=self.colors['success'])
-        ax6_twin.set_ylabel('相对计算时间', fontsize=10, color=self.colors['danger'])
-        ax6.set_title('(f) 规划Horizon效果对比', fontsize=11, fontweight='bold')
+        ax6.set_xlabel('规划Horizon (H)', fontsize=14)
+        ax6.set_ylabel('达标率 (%)', fontsize=14, color=self.colors['success'])
+        ax6_twin.set_ylabel('相对计算时间', fontsize=14, color=self.colors['danger'])
+        ax6.set_title('(f) 规划Horizon效果对比', fontsize=12, fontweight='bold')
         ax6.set_ylim(70, 100)
+        set_tick_fontsize(ax6, 14)
         
         # 标记最优horizon
         best_h = horizons_test[np.argmax(accuracy_h)]
         ax6.axvline(x=best_h, color='gold', linestyle='--', linewidth=2, alpha=0.7)
-        ax6.annotate(f'最优H={best_h}', xy=(best_h+0.3, 92), fontsize=9, fontweight='bold', color='gold')
+        ax6.annotate(f'最优H={best_h}', xy=(best_h+0.3, 92), fontsize=12, fontweight='bold', color='gold')
         
         # 合并图例
         lines1, labels1 = ax6.get_legend_handles_labels()
         lines2, labels2 = ax6_twin.get_legend_handles_labels()
-        ax6.legend(lines1 + lines2, labels1 + labels2, loc='lower right', fontsize=8)
+        ax6.legend(lines1 + lines2, labels1 + labels2, loc='lower right', fontsize=12)
         ax6.grid(True, alpha=0.3)
         
         plt.suptitle('控制智能体性能分析', fontsize=14, fontweight='bold', y=1.01)
         
-        save_path = os.path.join(OUTPUT_DIR, 'control_analysis.png')
-        plt.savefig(save_path, bbox_inches='tight', facecolor='white')
+        save_path = os.path.join(OUTPUT_DIR, 'control_analysis.svg')
+        plt.savefig(save_path, bbox_inches='tight', facecolor='white', format='svg')
         # plt.show()  # 非交互模式
         print(f"控制分析图已保存: {save_path}")
         
@@ -1165,11 +1211,11 @@ class AgentVisualizer:
         self.plot_control_agent_analysis()
         
         print("\n" + "=" * 60)
-        print("✓ 所有可视化图表已生成!")
-        print(f"  保存位置: {os.path.abspath(OUTPUT_DIR)}/")
-        print("  包含文件:")
+        print("[OK] All visualization charts generated!")
+        print(f"  Save location: {os.path.abspath(OUTPUT_DIR)}/")
+        print("  Files included:")
         for f in os.listdir(OUTPUT_DIR):
-            if f.endswith('.png'):
+            if f.endswith('.svg'):
                 print(f"    - {f}")
         print("=" * 60)
 

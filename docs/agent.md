@@ -965,6 +965,8 @@ class HybridDiagnoser:
 
 本系统生成的可视化图片及其对应的CSV数据文件：
 
+### A.1 主要系统可视化
+
 | 序号 | 图片文件                                        | 对应CSV数据文件                          | 建议插入位置 | 说明                          |
 | ---- | ----------------------------------------------- | ---------------------------------------- | ------------ | ----------------------------- |
 | 1    | `visualization_output/training_process.png`     | `visualization_data/training_process.csv`, `five_method_learning_curves.csv` | 5.5节        | TD-MPC2训练过程（世界模型损失分解） |
@@ -973,13 +975,59 @@ class HybridDiagnoser:
 | 4    | `visualization_output/diagnosis_analysis.png`   | `visualization_data/adaptive_threshold.csv`, `classifier_weights.csv`, `fault_type_accuracy.csv`, `detection_delay_stats.csv`, `confusion_matrix.csv`, `roc_curve.csv` | 4.4节        | KAN+PINN混合诊断器分析        |
 | 5    | `visualization_output/control_analysis.png`     | `visualization_data/tdmpc2_architecture.csv`, `horizon_prediction.csv`, `five_method_actions.csv`, `latent_space.csv`, `horizon_effect.csv` | 5.5节        | TD-MPC2控制智能体分析         |
 
+### A.2 数据预处理可视化（新增）
+
+| 序号 | 图片文件                                             | 对应CSV数据文件                                                                                       | 建议插入位置 | 说明                          |
+| ---- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------ | ----------------------------- |
+| 6    | `visualization_output/steady_state_selection.png`    | `visualization_data/steady_state_timeseries.csv`, `steady_state_quality.csv`                        | 2.3节        | 稳态工况智能筛选流程          |
+| 7    | `visualization_output/representative_points.png`     | `visualization_data/operating_points_all.csv`, `representative_points.csv`                          | 2.3节        | 代表性工况点提取与验证        |
+| 8    | `visualization_output/data_cleaning.png`             | `visualization_data/data_cleaning_raw.csv`, `data_cleaning_final.csv`                               | 2.2节        | 数据清洗与异常值剔除流程      |
+| 9    | `visualization_output/normalization_correlation.png` | `visualization_data/data_raw.csv`, `data_minmax_normalized.csv`, `data_zscore_normalized.csv`, `correlation_matrix.csv` | 2.2节        | 数据标准化与参数关联分析      |
+
+**数据预处理可视化说明：**
+
+这4个新增可视化展示了校准数据的预处理流程，包括：
+
+1. **稳态工况筛选** ([steady_state_selection.png](visualization_output/steady_state_selection.png))
+   - 基于RPM滚动标准差的稳态段识别算法（窗口60s，阈值1.0 rpm）
+   - 稳态段质量评估（稳定性+持续时间综合评分）
+   - 稳态/瞬态工况点分布对比
+   - 持续时间分布统计
+
+2. **代表性工况点提取** ([representative_points.png](visualization_output/representative_points.png))
+   - K-means分层抽样策略（10个RPM分箱）
+   - 全工况图谱覆盖分析
+   - 代表点质量评估（样本密度+稳定性评分）
+   - Voronoi覆盖区域可视化
+
+3. **数据清洗与异常值剔除** ([data_cleaning.png](visualization_output/data_cleaning.png))
+   - 物理边界过滤（RPM: 30-120, Pmax: 50-250 bar, Pcomp: 1-200 bar）
+   - Z-score异常检测方法
+   - 物理约束一致性检查（Pmax > Pcomp）
+   - 清洗前后数据分布对比
+
+4. **数据标准化与参数关联** ([normalization_correlation.png](visualization_output/normalization_correlation.png))
+   - Min-Max vs Z-score标准化对比
+   - 参数相关性矩阵热力图
+   - Pcomp物理模型估算验证（$P_{comp} = p_{scav} \times \varepsilon^n$）
+   - PCA主成分降维可视化
+
+**生成脚本：**
+```bash
+# 生成数据预处理可视化
+python visualize_data_preprocessing.py
+```
+
 ### CSV数据使用说明
 
 所有CSV文件保存在 `visualization_data/` 目录，可直接导入Origin进行图表重绘：
 
 ```bash
-# 生成/更新所有CSV数据
+# 生成/更新主要系统可视化CSV数据
 python export_visualization_data.py
+
+# 生成数据预处理可视化CSV数据
+python visualize_data_preprocessing.py
 ```
 
 **训练过程相关数据：**
@@ -1010,6 +1058,18 @@ python export_visualization_data.py
 - `five_method_actions.csv`: 五方法控制动作对比
 - `latent_space.csv`: 潜在空间状态分布
 - `horizon_effect.csv`: 规划horizon效果对比
+
+**数据预处理相关数据（新增）：**
+- `steady_state_timeseries.csv`: 稳态筛选时间序列数据（time, rpm, P_max, rpm_std, is_steady）
+- `steady_state_quality.csv`: 稳态段质量评分（segment_id, time_center, quality_score）
+- `operating_points_all.csv`: 全部工况点数据（rpm, P_max, P_comp, T_exh）
+- `representative_points.csv`: 代表性工况点（point_id, rpm, P_max, P_comp, T_exh）
+- `data_cleaning_raw.csv`: 原始数据含异常值标记（rpm, P_max, P_comp, T_exh, is_outlier）
+- `data_cleaning_final.csv`: 清洗后数据（rpm, P_max, P_comp, T_exh）
+- `data_raw.csv`: 原始参数值（不同量纲）
+- `data_minmax_normalized.csv`: Min-Max标准化后 [0,1]
+- `data_zscore_normalized.csv`: Z-score标准化后 (μ=0, σ=1)
+- `correlation_matrix.csv`: 参数相关性矩阵
 
 **实验结果：**
 - `results/five_method_summary.csv`: 五方法对比总结表
