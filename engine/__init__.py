@@ -10,6 +10,7 @@ from .thermodynamics import ThermodynamicSolver
 from .combustion import DoublieWiebeCombustion
 from .heat_transfer import WoschniHeatTransfer
 from .engine_model import MarineEngine0D, OperatingCondition
+from .config import EngineConfig, DEFAULT_ENGINE_CONFIG
 
 __all__ = [
     'EngineGeometry',
@@ -17,5 +18,7 @@ __all__ = [
     'DoublieWiebeCombustion',
     'WoschniHeatTransfer',
     'MarineEngine0D',
-    'OperatingCondition'
+    'OperatingCondition',
+    'EngineConfig',
+    'DEFAULT_ENGINE_CONFIG'
 ]

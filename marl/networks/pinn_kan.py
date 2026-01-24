@@ -13,27 +13,54 @@ from dataclasses import dataclass
 
 from .kan import KANNetwork, KANLayer
 
+# 导入共享配置模块，确保与发动机模型一致
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from engine.config import EngineConfig, DEFAULT_ENGINE_CONFIG
+
 
 @dataclass
 class PhysicsParams:
-    """物理参数配置"""
+    """
+    物理参数配置
+    
+    注意：此类现在基于共享的 EngineConfig 初始化，
+    确保与 MarineEngine0D 仿真环境的一致性。
+    """
     # 发动机几何参数
-    bore: float = 0.620          # 气缸直径 [m]
-    stroke: float = 2.658        # 活塞行程 [m]
-    compression_ratio: float = 13.5
+    bore: float = DEFAULT_ENGINE_CONFIG.bore                    # 气缸直径 [m]
+    stroke: float = DEFAULT_ENGINE_CONFIG.stroke                # 活塞行程 [m]
+    compression_ratio: float = DEFAULT_ENGINE_CONFIG.compression_ratio
     
     # 热力学参数
-    gamma: float = 1.35          # 比热比
-    R: float = 287.0             # 气体常数
+    gamma: float = DEFAULT_ENGINE_CONFIG.gamma                  # 比热比
+    R: float = DEFAULT_ENGINE_CONFIG.R                          # 气体常数
     
     # 基准值（健康状态）
-    Pmax_base: float = 150.0     # 基准最大压力 [bar]
-    Pcomp_base: float = 120.0    # 基准压缩压力 [bar]
-    Texh_base: float = 400.0     # 基准排温 [°C]
+    Pmax_base: float = DEFAULT_ENGINE_CONFIG.Pmax_base          # 基准最大压力 [bar]
+    Pcomp_base: float = DEFAULT_ENGINE_CONFIG.Pcomp_base        # 基准压缩压力 [bar]
+    Texh_base: float = DEFAULT_ENGINE_CONFIG.Texh_base          # 基准排温 [°C]
     
     # 物理约束权重
-    lambda_physics: float = 0.1
-    lambda_consistency: float = 0.05
+    lambda_physics: float = DEFAULT_ENGINE_CONFIG.lambda_physics
+    lambda_consistency: float = DEFAULT_ENGINE_CONFIG.lambda_consistency
+    
+    @classmethod
+    def from_engine_config(cls, config: EngineConfig) -> 'PhysicsParams':
+        """从共享的 EngineConfig 创建 PhysicsParams"""
+        return cls(
+            bore=config.bore,
+            stroke=config.stroke,
+            compression_ratio=config.compression_ratio,
+            gamma=config.gamma,
+            R=config.R,
+            Pmax_base=config.Pmax_base,
+            Pcomp_base=config.Pcomp_base,
+            Texh_base=config.Texh_base,
+            lambda_physics=config.lambda_physics,
+            lambda_consistency=config.lambda_consistency
+        )
 
 
 class PhysicsConstraints(nn.Module):

@@ -8,11 +8,13 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Tuple, List
 from copy import deepcopy
+from scipy.integrate import simpson
 
 from .geometry import EngineGeometry
 from .combustion import DoublieWiebeCombustion
 from .heat_transfer import WoschniHeatTransfer
 from .thermodynamics import ThermodynamicSolver, ThermodynamicState
+from .config import EngineConfig, DEFAULT_ENGINE_CONFIG
 
 
 @dataclass
@@ -44,28 +46,42 @@ class MarineEngine0D:
     """
     
     def __init__(self, 
-                 bore: float = 0.620,
-                 stroke: float = 2.658,
-                 n_cylinders: int = 6,
-                 compression_ratio: float = 13.5,
-                 con_rod_ratio: float = 4.0):
+                 config: EngineConfig = None,
+                 bore: float = None,
+                 stroke: float = None,
+                 n_cylinders: int = None,
+                 compression_ratio: float = None,
+                 con_rod_ratio: float = None):
         """
         初始化发动机模型
         
         Args:
-            bore: 气缸直径 [m]
-            stroke: 活塞行程 [m]
-            n_cylinders: 气缸数量
-            compression_ratio: 有效压缩比 (待校准)
-            con_rod_ratio: 连杆比 (待校准)
+            config: 共享配置对象 (推荐使用，确保与PINN一致)
+            bore: 气缸直径 [m] (向后兼容)
+            stroke: 活塞行程 [m] (向后兼容)
+            n_cylinders: 气缸数量 (向后兼容)
+            compression_ratio: 有效压缩比 (向后兼容)
+            con_rod_ratio: 连杆比 (向后兼容)
         """
+        # 使用配置对象或默认值
+        if config is None:
+            config = DEFAULT_ENGINE_CONFIG
+        self.config = config
+        
+        # 允许单独参数覆盖配置（向后兼容）
+        _bore = bore if bore is not None else config.bore
+        _stroke = stroke if stroke is not None else config.stroke
+        _n_cylinders = n_cylinders if n_cylinders is not None else config.n_cylinders
+        _compression_ratio = compression_ratio if compression_ratio is not None else config.compression_ratio
+        _con_rod_ratio = con_rod_ratio if con_rod_ratio is not None else config.con_rod_ratio
+        
         # 初始化子模块
         self.geometry = EngineGeometry(
-            bore=bore,
-            stroke=stroke,
-            n_cylinders=n_cylinders,
-            compression_ratio=compression_ratio,
-            con_rod_ratio=con_rod_ratio
+            bore=_bore,
+            stroke=_stroke,
+            n_cylinders=_n_cylinders,
+            compression_ratio=_compression_ratio,
+            con_rod_ratio=_con_rod_ratio
         )
         
         self.combustion = DoublieWiebeCombustion()
@@ -84,7 +100,7 @@ class MarineEngine0D:
         self.cycle_results: Dict = {}
         
         # 多缸状态 (用于不均匀性分析)
-        self.cylinder_states: List[Dict] = [{} for _ in range(n_cylinders)]
+        self.cylinder_states: List[Dict] = [{} for _ in range(_n_cylinders)]
         
         # 健康基准 (用于诊断)
         self.baseline_Pmax: float = 0.0
@@ -147,31 +163,57 @@ class MarineEngine0D:
             results: 循环仿真结果
             
         Returns:
-            IMEP: 指示平均有效压力 [Pa]
+            IMEP: 指示平均有效压力 [bar]
         """
-        p = results['pressure']
-        V = results['volume']
+        p = results['pressure']  # Pa
+        V = results['volume']    # m^3
         
-        # 闭环积分 ∮p dV
-        # 兼容NumPy 1.x和2.x版本
-        try:
-            work = np.trapezoid(p, V)
-        except AttributeError:
-            work = np.trapz(p, V)
+        # 使用 Simpson 积分计算指示功 (更高精度)
+        # 对于二冲程发动机，积分区间是有效压缩膨胀过程
+        work = simpson(p, x=V)  # 单位: J
         
-        IMEP = work / self.geometry.displaced_volume
+        # IMEP = Work / Displaced_Volume
+        # 转换为 bar 以保持与 Pmax, Pcomp 单位一致
+        IMEP = (work / self.geometry.displaced_volume) / 1e5
         return IMEP
     
-    def get_pmax(self) -> float:
-        """获取最大爆发压力 [bar]"""
+    def get_pmax(self, cylinder_index: int = None) -> float:
+        """
+        获取最大爆发压力 [bar]
+        
+        Args:
+            cylinder_index: 气缸索引 (0-based)，None表示使用当前cycle_results
+        """
+        if cylinder_index is not None and 0 <= cylinder_index < len(self.cylinder_states):
+            result = self.cylinder_states[cylinder_index]
+            if 'P_max' in result:
+                return result['P_max'] / 1e5
         return self.solver.get_pmax() / 1e5
     
-    def get_pcomp(self) -> float:
-        """获取压缩终点压力 [bar]"""
+    def get_pcomp(self, cylinder_index: int = None) -> float:
+        """
+        获取压缩终点压力 [bar]
+        
+        Args:
+            cylinder_index: 气缸索引 (0-based)，None表示使用当前cycle_results
+        """
+        if cylinder_index is not None and 0 <= cylinder_index < len(self.cylinder_states):
+            result = self.cylinder_states[cylinder_index]
+            if 'P_comp' in result:
+                return result['P_comp'] / 1e5
         return self.solver.get_pcomp() / 1e5
     
-    def get_exhaust_temp(self) -> float:
-        """获取排气温度 [°C]"""
+    def get_exhaust_temp(self, cylinder_index: int = None) -> float:
+        """
+        获取排气温度 [°C]
+        
+        Args:
+            cylinder_index: 气缸索引 (0-based)，None表示使用当前cycle_results
+        """
+        if cylinder_index is not None and 0 <= cylinder_index < len(self.cylinder_states):
+            result = self.cylinder_states[cylinder_index]
+            if 'T_exhaust' in result:
+                return result['T_exhaust'] - 273.15
         return self.solver.get_exhaust_temperature() - 273.15
     
     # ==================== 校准接口 ====================
@@ -288,16 +330,54 @@ class MarineEngine0D:
         
         return results_list
     
-    def get_pv_diagram_data(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_pv_diagram_data(self, cylinder_index: int = None) -> Tuple[np.ndarray, np.ndarray]:
         """
         获取P-V示功图数据
+        
+        Args:
+            cylinder_index: 气缸索引 (0-based)，None表示使用当前cycle_results
         
         Returns:
             (V, p): 容积和压力数组
         """
-        if 'volume' in self.cycle_results and 'pressure' in self.cycle_results:
-            return self.cycle_results['volume'], self.cycle_results['pressure']
+        # 选择数据源：指定气缸或当前结果
+        if cylinder_index is not None and 0 <= cylinder_index < len(self.cylinder_states):
+            result = self.cylinder_states[cylinder_index]
+        else:
+            result = self.cycle_results
+        
+        if 'volume' in result and 'pressure' in result:
+            return result['volume'], result['pressure']
         return np.array([]), np.array([])
+    
+    def get_all_cylinders_summary(self) -> Dict:
+        """
+        获取所有气缸的汇总数据
+        
+        Returns:
+            summary: 包含各缸Pmax, Pcomp, IMEP等的汇总字典
+        """
+        summary = {
+            'Pmax': [],
+            'Pcomp': [],
+            'IMEP': [],
+            'T_exhaust': []
+        }
+        for i, state in enumerate(self.cylinder_states):
+            if state:  # 非空状态
+                summary['Pmax'].append(state.get('P_max', 0) / 1e5)
+                summary['Pcomp'].append(state.get('P_comp', 0) / 1e5)
+                summary['IMEP'].append(state.get('IMEP', 0))
+                summary['T_exhaust'].append(state.get('T_exhaust', 273.15) - 273.15)
+        
+        # 计算统计量
+        if summary['Pmax']:
+            summary['Pmax_mean'] = np.mean(summary['Pmax'])
+            summary['Pmax_std'] = np.std(summary['Pmax'])
+            summary['IMEP_mean'] = np.mean(summary['IMEP'])
+            summary['imbalance_index'] = np.std(summary['IMEP']) / np.mean(summary['IMEP']) if np.mean(summary['IMEP']) > 0 else 0
+        
+        return summary
     
     def get_heat_release_data(self) -> Tuple[np.ndarray, np.ndarray]:
         """
