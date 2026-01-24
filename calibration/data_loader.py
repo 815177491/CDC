@@ -286,3 +286,364 @@ class CalibrationDataLoader:
             fuel_mass = 0.0
         
         return fuel_mass
+
+
+class VisualizationDataLoader(CalibrationDataLoader):
+    """
+    可视化数据加载器
+    
+    继承自 CalibrationDataLoader，增加数据段分析和模拟数据生成功能，
+    专门用于数据预处理可视化。
+    """
+    
+    # 可视化所需的列映射（与基类略有不同）
+    VIZ_COLUMN_MAPPING = {
+        'Time': 'time',
+        'Main Engine RPM': 'rpm',
+        'Fuel Command': 'fuel_command',
+        'Scav. Air Press. Mean Value': 'p_scav',
+        'Scavenge Air Temperature After Cooler 1': 'T_scav',
+        'Main Fuel Rail Pressure': 'p_rail',
+        'Cyl 1 KPI 5 - Pcomp': 'P_comp',
+        'Cyl 1 KPI 4 - PMAx': 'P_max',
+        'Cyl 1 KPI 14 - Pign': 'P_ign',
+        'Exhaust gas temp cyl. 1': 'T_exh',
+        'Exhaust Gas Temp. before TC #1': 'T_exh_turbo',
+    }
+    
+    def __init__(self, csv_path: str = 'data/calibration_data.csv'):
+        super().__init__(csv_path)
+        self.segment_stats = None
+    
+    def analyze_segments(self, n_segments: int = 10) -> Optional[int]:
+        """
+        分析数据集的不同时间段特征，选择最具代表性的段
+        
+        Args:
+            n_segments: 将数据分为多少段分析
+            
+        Returns:
+            best_segment: 最佳数据段索引 (0-based)，如果失败返回 None
+        """
+        print(f"\n正在分析数据集的 {n_segments} 个时间段...")
+        
+        try:
+            column_mapping = {
+                'Time': 'time',
+                'Main Engine RPM': 'rpm',
+                'Cyl 1 KPI 4 - PMAx': 'P_max',
+                'Cyl 1 KPI 5 - Pcomp': 'P_comp',
+            }
+            
+            # 快速读取小样本估算总行数
+            first_chunk = pd.read_csv(self.csv_path, nrows=1000)
+            
+            # 逐段分析
+            segment_stats = []
+            chunk_size = 10000
+            
+            for seg_idx in range(n_segments):
+                skip_rows = seg_idx * chunk_size + 1  # +1 跳过表头
+                
+                try:
+                    df_seg = pd.read_csv(self.csv_path, 
+                                        skiprows=range(1, skip_rows),
+                                        nrows=chunk_size)
+                    
+                    # 重命名列
+                    available_cols = {k: v for k, v in column_mapping.items() if k in df_seg.columns}
+                    if len(available_cols) < 3:
+                        continue
+                    
+                    df_seg = df_seg[list(available_cols.keys())].rename(columns=available_cols)
+                    
+                    # 转换数值
+                    for col in df_seg.columns:
+                        if col != 'time':
+                            df_seg[col] = pd.to_numeric(df_seg[col], errors='coerce')
+                    
+                    # 删除缺失值
+                    df_seg = df_seg.dropna()
+                    
+                    if len(df_seg) < 100:
+                        continue
+                    
+                    # 计算统计特征
+                    stats = {
+                        'segment': seg_idx,
+                        'start_row': skip_rows - 1,
+                        'end_row': skip_rows + chunk_size - 1,
+                        'valid_samples': len(df_seg),
+                        
+                        # RPM变化特征
+                        'rpm_mean': df_seg['rpm'].mean(),
+                        'rpm_std': df_seg['rpm'].std(),
+                        'rpm_range': df_seg['rpm'].max() - df_seg['rpm'].min(),
+                        
+                        # 异常值特征
+                        'outlier_ratio': 0,
+                        'rpm_outliers': 0,
+                        'pmax_outliers': 0,
+                        
+                        # 稳态特征
+                        'rpm_stability': 0,
+                        'n_steady_regions': 0,
+                        
+                        # 综合评分
+                        'diversity_score': 0,
+                    }
+                    
+                    # 检测异常值
+                    rpm_outliers = ((df_seg['rpm'] < 30) | (df_seg['rpm'] > 120)).sum()
+                    pmax_outliers = ((df_seg['P_max'] < 50) | (df_seg['P_max'] > 250)).sum()
+                    stats['rpm_outliers'] = rpm_outliers
+                    stats['pmax_outliers'] = pmax_outliers
+                    stats['outlier_ratio'] = (rpm_outliers + pmax_outliers) / (2 * len(df_seg))
+                    
+                    # 计算稳态段数量
+                    df_seg['rpm_rolling_std'] = df_seg['rpm'].rolling(window=30, center=True).std()
+                    steady_mask = df_seg['rpm_rolling_std'] < 1.0
+                    
+                    # 统计连续稳态段
+                    steady_changes = steady_mask.astype(int).diff().fillna(0)
+                    n_steady_regions = (steady_changes == 1).sum()
+                    stats['n_steady_regions'] = n_steady_regions
+                    stats['rpm_stability'] = steady_mask.sum() / len(df_seg)
+                    
+                    # 计算多样性评分（综合考虑异常值、稳态段、RPM变化）
+                    # 异常值多 = 好展示清洗效果
+                    # 稳态段多 = 好展示稳态筛选
+                    # RPM变化大 = 工况多样
+                    diversity_score = (
+                        stats['outlier_ratio'] * 100 +      # 异常值权重
+                        stats['n_steady_regions'] * 10 +     # 稳态段权重
+                        stats['rpm_range'] / 10              # 变化范围权重
+                    )
+                    stats['diversity_score'] = diversity_score
+                    
+                    segment_stats.append(stats)
+                    print(f"  段 {seg_idx} [{skip_rows:6d}-{skip_rows+chunk_size:6d}]: "
+                          f"异常{stats['outlier_ratio']*100:5.1f}%, "
+                          f"稳态段{n_steady_regions:2d}个, "
+                          f"RPM范围{stats['rpm_range']:5.1f}, "
+                          f"评分{diversity_score:6.1f}")
+                    
+                except Exception as e:
+                    print(f"  段 {seg_idx}: 读取失败")
+                    continue
+            
+            if len(segment_stats) == 0:
+                print("  [WARNING] 未能分析任何数据段，使用默认前10%")
+                self.segment_stats = None
+                return 0
+            
+            # 选择第1段数据（用户指定）
+            segment_stats_df = pd.DataFrame(segment_stats)
+            best_idx = 0  # 强制选择第1段
+            best_seg = segment_stats_df.iloc[best_idx]
+            
+            print(f"\n✅ 选择第1段数据 (用户指定):")
+            print(f"   段索引: {best_seg['segment']}")
+            print(f"   行范围: {best_seg['start_row']:,} - {best_seg['end_row']:,}")
+            print(f"   异常值比例: {best_seg['outlier_ratio']*100:.1f}%")
+            print(f"   稳态段数量: {best_seg['n_steady_regions']:.0f}")
+            print(f"   RPM变化范围: {best_seg['rpm_range']:.1f}")
+            print(f"   多样性评分: {best_seg['diversity_score']:.1f}")
+            
+            self.segment_stats = segment_stats_df
+            return int(best_seg['segment'])
+            
+        except FileNotFoundError:
+            print("  [WARNING] 未找到calibration_data.csv，将生成模拟数据")
+            return None
+        except Exception as e:
+            print(f"  [WARNING] 分析出错: {e}，使用默认前10%")
+            return 0
+    
+    def load_segment(self, segment_index: Optional[int] = None, use_full_data: bool = False) -> pd.DataFrame:
+        """
+        读取指定数据段，用于可视化
+        
+        Args:
+            segment_index: 数据段索引 (None=自动选择, 0=前10%, 1=10%-20%, ...)
+            use_full_data: 是否使用全部数据 (True=读取所有行, False=读取10,000行子集)
+            
+        Returns:
+            df: 预处理后的DataFrame
+        """
+        # 如果使用全部数据
+        if use_full_data:
+            print(f"\n正在读取全部数据...")
+            chunk_size = None
+            skip_rows = None
+        else:
+            # 如果未指定段索引，自动分析选择
+            if segment_index is None:
+                segment_index = self.analyze_segments()
+                if segment_index is None:
+                    return self.get_synthetic_data()
+            
+            chunk_size = 10000
+            skip_rows = segment_index * chunk_size + 1  # +1跳过表头
+            
+            print(f"\n正在读取数据段 {segment_index} (行 {skip_rows-1:,} - {skip_rows+chunk_size-1:,})...")
+        
+        try:
+            # 读取数据
+            if use_full_data:
+                df = pd.read_csv(self.csv_path)
+                print(f"  已读取 {len(df):,} 行数据 (全部数据,约 {df.memory_usage(deep=True).sum() / 1024**2:.0f} MB)")
+            else:
+                df = pd.read_csv(self.csv_path,
+                               skiprows=range(1, skip_rows),
+                               nrows=chunk_size)
+                print(f"  已读取 {len(df):,} 行数据")
+            
+            # 重命名列
+            available_cols = {k: v for k, v in self.VIZ_COLUMN_MAPPING.items() if k in df.columns}
+            df = df[list(available_cols.keys())].rename(columns=available_cols)
+            
+            # 转换为数值类型
+            for col in df.columns:
+                if col != 'time':
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+            # 单位转换 - 参考data_loader.py
+            if 'p_scav' in df.columns:
+                df['p_scav'] = df['p_scav'] * 1e5  # bar → Pa
+            
+            if 'T_scav' in df.columns:
+                if df['T_scav'].mean() < 200:
+                    df['T_scav'] = df['T_scav'] + 273.15  # °C → K
+            
+            if 'p_rail' in df.columns:
+                df['p_rail'] = df['p_rail'] * 1e5  # bar → Pa
+            
+            # 估算P_comp (如果需要) - 参考data_loader.py
+            if 'P_comp' in df.columns and 'p_scav' in df.columns:
+                p_scav_bar = df['p_scav'] / 1e5
+                compression_ratio_est = 14.0
+                n_poly = 1.35
+                df['P_comp_est'] = p_scav_bar * (compression_ratio_est ** n_poly)
+                
+                # 检查P_comp是否合理
+                if df['P_comp'].mean() < df['P_comp_est'].mean() * 0.3:
+                    print("  检测到P_comp可能为KPI值，使用估算值替换...")
+                    df['P_comp'] = df['P_comp_est']
+            
+            # 删除缺失值
+            key_cols = ['rpm', 'P_max', 'P_comp']
+            existing_key_cols = [c for c in key_cols if c in df.columns]
+            df = df.dropna(subset=existing_key_cols)
+            
+            print(f"  预处理后剩余 {len(df):,} 行数据")
+            
+            self.processed_data = df
+            return df
+            
+        except FileNotFoundError:
+            print("  [WARNING] 未找到calibration_data.csv，将生成模拟数据...")
+            return self.get_synthetic_data()
+        except Exception as e:
+            print(f"  [WARNING] 读取数据出错: {e}，将生成模拟数据...")
+            return self.get_synthetic_data()
+    
+    def get_synthetic_data(self, n_samples: int = 5000) -> pd.DataFrame:
+        """生成模拟数据作为备选"""
+        print(f"  生成 {n_samples} 个模拟数据点...")
+        
+        time = np.arange(n_samples)
+        
+        # 模拟3个稳态段 + 2个瞬态段
+        rpm = np.zeros(n_samples)
+        load = np.zeros(n_samples)
+        P_max = np.zeros(n_samples)
+        P_comp = np.zeros(n_samples)
+        T_exh = np.zeros(n_samples)
+        fuel_command = np.zeros(n_samples)
+        
+        # 稳态1: 75rpm, 50%负荷
+        rpm[0:1500] = 75 + np.random.normal(0, 0.3, 1500)
+        load[0:1500] = 0.50 + np.random.normal(0, 0.01, 1500)
+        P_max[0:1500] = 120 + np.random.normal(0, 1.5, 1500)
+        P_comp[0:1500] = 95 + np.random.normal(0, 1.2, 1500)
+        T_exh[0:1500] = 300 + np.random.normal(0, 5, 1500)
+        fuel_command[0:1500] = 50 + np.random.normal(0, 2, 1500)
+        
+        # 瞬态1: 加速
+        t_trans1 = np.linspace(0, 1, 500)
+        rpm[1500:2000] = 75 + (100-75) * t_trans1 + np.random.normal(0, 2.0, 500)
+        load[1500:2000] = 0.50 + (0.75-0.50) * t_trans1 + np.random.normal(0, 0.03, 500)
+        P_max[1500:2000] = 120 + (140-120) * t_trans1 + np.random.normal(0, 3.0, 500)
+        P_comp[1500:2000] = 95 + (115-95) * t_trans1 + np.random.normal(0, 2.5, 500)
+        T_exh[1500:2000] = 300 + (340-300) * t_trans1 + np.random.normal(0, 8, 500)
+        fuel_command[1500:2000] = 50 + (75-50) * t_trans1 + np.random.normal(0, 3, 500)
+        
+        # 稳态2: 100rpm, 75%负荷
+        rpm[2000:3500] = 100 + np.random.normal(0, 0.4, 1500)
+        load[2000:3500] = 0.75 + np.random.normal(0, 0.015, 1500)
+        P_max[2000:3500] = 140 + np.random.normal(0, 2.0, 1500)
+        P_comp[2000:3500] = 115 + np.random.normal(0, 1.5, 1500)
+        T_exh[2000:3500] = 340 + np.random.normal(0, 6, 1500)
+        fuel_command[2000:3500] = 75 + np.random.normal(0, 2.5, 1500)
+        
+        # 瞬态2: 减速
+        t_trans2 = np.linspace(0, 1, 500)
+        rpm[3500:4000] = 100 - (100-60) * t_trans2 + np.random.normal(0, 2.5, 500)
+        load[3500:4000] = 0.75 - (0.75-0.30) * t_trans2 + np.random.normal(0, 0.04, 500)
+        P_max[3500:4000] = 140 - (140-100) * t_trans2 + np.random.normal(0, 3.5, 500)
+        P_comp[3500:4000] = 115 - (115-80) * t_trans2 + np.random.normal(0, 3.0, 500)
+        T_exh[3500:4000] = 340 - (340-280) * t_trans2 + np.random.normal(0, 10, 500)
+        fuel_command[3500:4000] = 75 - (75-30) * t_trans2 + np.random.normal(0, 4, 500)
+        
+        # 稳态3: 60rpm, 30%负荷
+        rpm[4000:5000] = 60 + np.random.normal(0, 0.25, 1000)
+        load[4000:5000] = 0.30 + np.random.normal(0, 0.008, 1000)
+        P_max[4000:5000] = 100 + np.random.normal(0, 1.2, 1000)
+        P_comp[4000:5000] = 80 + np.random.normal(0, 1.0, 1000)
+        T_exh[4000:5000] = 280 + np.random.normal(0, 4, 1000)
+        fuel_command[4000:5000] = 30 + np.random.normal(0, 1.5, 1000)
+        
+        # 注入异常值 (5%)
+        n_outliers = int(n_samples * 0.05)
+        outlier_indices = np.random.choice(n_samples, n_outliers, replace=False)
+        
+        for i in outlier_indices[:n_outliers//2]:
+            P_max[i] = np.random.choice([200, 40])  # 极端值
+            P_comp[i] = np.random.choice([160, 10])
+        
+        for i in outlier_indices[n_outliers//2:]:
+            rpm[i] = rpm[i] + np.random.choice([-20, 20])  # 尖峰
+        
+        df = pd.DataFrame({
+            'time': time,
+            'rpm': rpm,
+            'load': load,
+            'P_max': P_max,
+            'P_comp': P_comp,
+            'T_exh': T_exh,
+            'fuel_command': fuel_command,
+            'p_scav': 2.0e5 + np.random.normal(0, 1e4, n_samples),  # Pa
+            'T_scav': 310 + np.random.normal(0, 3, n_samples),  # K
+        })
+        
+        self.processed_data = df
+        return df
+    
+    def apply_outlier_filter(self, df: pd.DataFrame) -> pd.DataFrame:
+        """应用异常值过滤 - 与 _filter_outliers 保持一致"""
+        # 物理边界过滤
+        filters = [
+            (df['rpm'] > 30) & (df['rpm'] < 120),
+            (df['P_max'] > 50) & (df['P_max'] < 250),
+            (df['P_comp'] > 1) & (df['P_comp'] < 200),
+        ]
+        
+        mask = np.ones(len(df), dtype=bool)
+        for f in filters:
+            mask &= f
+        
+        df_clean = df[mask].reset_index(drop=True)
+        print(f"  异常值过滤: {len(df)} → {len(df_clean)} 行 (剔除 {len(df)-len(df_clean)} 行, {(len(df)-len(df_clean))/len(df)*100:.1f}%)")
+        
+        return df_clean
