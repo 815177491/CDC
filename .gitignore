@@ -54,7 +54,3 @@ calibration_data.csv
 
 # Logs
 *.log
-
-# Data and output directories
-data/
-visualization_output/
