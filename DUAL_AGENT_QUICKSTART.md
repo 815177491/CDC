@@ -3,6 +3,7 @@
 ## 概述
 
 本系统采用 **SAC 诊断智能体** + **强化学习控制** 的架构，支持三种多智能体协同训练算法：
+
 - **MAPPO** (Multi-Agent PPO): 中央化评价，分布式演员
 - **QMIX** (Q-Mix): 值分解 + 超网络混合
 - **独立训练** (Independent): 各智能体独立学习
@@ -12,21 +13,25 @@
 ### 1. 训练双智能体系统
 
 #### MAPPO 模式
+
 ```bash
 python main.py --mode train-mappo --episodes 500 --save-dir models/dual_mappo
 ```
 
 #### QMIX 模式
+
 ```bash
 python main.py --mode train-qmix --episodes 500 --save-dir models/dual_qmix
 ```
 
 #### 独立训练模式
+
 ```bash
 python main.py --mode train-independent --episodes 500 --save-dir models/dual_ind
 ```
 
 **参数说明**:
+
 - `--episodes`: 训练回合数 (default: 500)
 - `--eval-interval`: 评估间隔 (default: 50)
 - `--save-dir`: 模型保存目录 (default: models/dual_agent)
@@ -39,6 +44,7 @@ python main.py --mode eval-dual --model-dir models/dual_mappo --num-episodes 100
 ```
 
 **输出指标**:
+
 ```
 诊断性能:
   - 准确率: XX%
@@ -65,6 +71,7 @@ python main.py --mode demo-dual --model-dir models/dual_mappo
 ```
 
 **输出**:
+
 - 5 个演示回合的运行
 - 协同响应时序图: `models/dual_mappo/coordination_response.png`
 
@@ -73,17 +80,20 @@ python main.py --mode demo-dual --model-dir models/dual_mappo
 ### 诊断智能体 (RLDiagnosisAgent - SAC)
 
 **输入状态**:
+
 - 12D 基础状态向量 (Pmax, Pcomp, 转速等)
 - 10 步历史残差序列 (3×10 张量)
 
 **输出动作**:
+
 - 5 故障类型 × 4 置信度 = 20 个离散动作
 - 解码为: `(故障类型, 置信度)`
 
 **奖励函数**:
+
 ```
-R_diag = 准确率奖励(±1.0) 
-       + 置信度校准(±0.2-0.4) 
+R_diag = 准确率奖励(±1.0)
+       + 置信度校准(±0.2-0.4)
        + 检测延迟惩罚(-0.05~-0.5)
        + 下游控制反馈(+0.3×改进)
 ```
@@ -91,12 +101,15 @@ R_diag = 准确率奖励(±1.0)
 ### 控制智能体 (SAC - 连续)
 
 **输入状态**:
+
 - 10D 状态向量
 
 **输出动作**:
+
 - 2D 连续动作: [VIT, 燃油系数]
 
 **奖励函数**:
+
 ```
 R_ctrl = Pmax 目标奖励
        + 违规惩罚
@@ -107,11 +120,13 @@ R_ctrl = Pmax 目标奖励
 ### 多智能体算法
 
 #### MAPPO
+
 - **架构**: 中央化评价家 (共用全局状态) + 分布式演员 (独立策略)
 - **优化**: PPO-Clip for actors + MSE for critic
 - **适用**: 对称或近似对称的多智能体任务
 
 #### QMIX
+
 - **架构**: 独立 Q 网络 + 超网络混合函数
 - **约束**: 单调性约束 (确保价值分解有效)
 - **适用**: 完全可观察的中心化控制任务
@@ -119,6 +134,7 @@ R_ctrl = Pmax 目标奖励
 ## 核心模块
 
 ### agents/rl_diagnosis_agent.py
+
 ```python
 from agents.rl_diagnosis_agent import RLDiagnosisAgent, create_rl_diagnosis_agent
 
@@ -134,6 +150,7 @@ fault_type, confidence = diag_agent.decode_action(action)
 ```
 
 ### agents/multi_agent_algorithms.py
+
 ```python
 from agents.multi_agent_algorithms import get_multi_agent_algorithm
 
@@ -148,6 +165,7 @@ mappo.update(batch)  # 自动处理 PPO-Clip 优化
 ```
 
 ### environments/dual_agent_env.py
+
 ```python
 from environments import create_dual_agent_env
 
@@ -169,6 +187,7 @@ ground_truth_fault = info['ground_truth_fault']
 ## 评估框架
 
 ### 诊断指标
+
 - 准确率 (Accuracy)
 - 精确率/召回率 (Per-class Precision/Recall)
 - 混淆矩阵 (Confusion Matrix)
@@ -177,6 +196,7 @@ ground_truth_fault = info['ground_truth_fault']
 - 置信度校准 (Confidence Calibration)
 
 ### 控制指标
+
 - Pmax RMSE / MAE
 - 违规次数 (Violation Count)
 - 超调量 (Overshoot)
@@ -185,6 +205,7 @@ ground_truth_fault = info['ground_truth_fault']
 - 平滑性 (Smoothness)
 
 ### 协同指标
+
 - 端到端成功率 (E2E Success Rate)
 - 诊断正确时的控制成功率
 - 协同度量 (Cooperation Metrics)
@@ -193,13 +214,16 @@ ground_truth_fault = info['ground_truth_fault']
 ## 可视化
 
 ### 协同响应时序图
+
 显示 4 条轨迹:
+
 1. 故障信号 vs 诊断结果
 2. Pmax 跟踪
 3. VIT 动作
 4. 燃油系数
 
 ### 训练曲线
+
 - 总奖励趋势
 - 诊断/控制奖励分解
 - 诊断准确率
@@ -207,9 +231,11 @@ ground_truth_fault = info['ground_truth_fault']
 - 违规次数
 
 ### 性能雷达图
+
 5D 对比: 准确率 | 响应速度 | 安全性 | 经济性 | 鲁棒性
 
 ### 混淆矩阵
+
 归一化的故障分类混淆矩阵
 
 ## 训练配置示例
@@ -244,6 +270,7 @@ config = {
 ## 故障类型
 
 系统支持以下 5 种故障:
+
 1. `FUEL_PUMP_DEGRADATION` - 燃油泵降级
 2. `INJECTION_TIMING_FAULT` - 喷射正时故障
 3. `AIR_SCAVENGING_ISSUE` - 扫气问题
@@ -267,7 +294,9 @@ A: 修改 `agents/rl_diagnosis_agent.py` 中的 `compute_reward()` 方法，逐�
 ## 进阶: 自定义扩展
 
 ### 添加新故障类型
+
 编辑 `diagnosis/fault_injector.py`:
+
 ```python
 class FaultType(Enum):
     # ... existing faults ...
@@ -277,7 +306,9 @@ class FaultType(Enum):
 ```
 
 ### 修改奖励设计
+
 编辑 `agents/rl_diagnosis_agent.py` 的 `compute_reward()`:
+
 ```python
 def compute_reward(self, ...):
     # 自定义多目标奖励
@@ -287,6 +318,7 @@ def compute_reward(self, ...):
 ```
 
 ### 集成新智能体算法
+
 在 `agents/multi_agent_algorithms.py` 中添加新类，继承 `BaseMultiAgentAlgorithm`
 
 ## 参考文献
