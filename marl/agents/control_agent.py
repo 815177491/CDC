@@ -71,7 +71,7 @@ class ControlAgent:
             deterministic: 是否确定性输出
             
         Returns:
-            动作字典 {'timing_offset', 'fuel_adj', 'protection_level'}
+            动作字典 {'timing_offset', 'fuel_adj', 'protection_level', 'log_prob', 'value'}
         """
         with torch.no_grad():
             obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
@@ -80,7 +80,9 @@ class ControlAgent:
         return {
             'timing_offset': actions['timing_offset'].cpu().numpy().flatten()[0],
             'fuel_adj': actions['fuel_adj'].cpu().numpy().flatten()[0],
-            'protection_level': actions['protection_level'].item()
+            'protection_level': actions['protection_level'].item(),
+            'log_prob': log_probs.cpu().numpy().flatten()[0],
+            'value': value.item()
         }
     
     def get_value(self, obs: np.ndarray) -> float:

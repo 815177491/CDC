@@ -1,9 +1,0 @@
-Traceback (most recent call last):
-  File "<string>", line 19, in <module>
-  File "D:\my_github\CDC\marl\agents\tdmpc2_controller.py", line 334, in act
-    action = self._mppi_planning(latent, diagnosis)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\my_github\CDC\marl\agents\tdmpc2_controller.py", line 391, in _mppi_planning
-    optimal_actions = (weights * actions).sum(dim=0)
-                       ~~~~~~~~^~~~~~~~~
-RuntimeError: The size of tensor a (64) must match the size of tensor b (3) at non-singleton dimension 1

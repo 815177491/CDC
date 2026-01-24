@@ -1,0 +1,70 @@
+{
+  "Threshold": {
+    "diag_accuracy": 0.246,
+    "diag_precision": {
+      "0": 0,
+      "1": 0.20711391265195858,
+      "2": 0.2614821839859098,
+      "3": 0.17587939698492464
+    },
+    "diag_recall": {
+      "0": 0.0,
+      "1": 0.24481106971793506,
+      "2": 0.9364386220281417,
+      "3": 0.01879194630872483
+    },
+    "diag_f1": {
+      "0": 0,
+      "1": 0.22439024390243903,
+      "2": 0.4088116924380428,
+      "3": 0.03395585738539898
+    },
+    "detection_delay_mean": 18.535714285714285,
+    "detection_delay_std": 36.60452952344358,
+    "false_alarm_rate": 1.0,
+    "pmax_maintenance_rate": 0.5195885426938881,
+    "control_smoothness": 0.8502890293724761,
+    "protection_accuracy": 0.0,
+    "variable_cond_accuracy": 0.0,
+    "composite_fault_accuracy": 0.0,
+    "training_time": 0.0,
+    "inference_time_mean": 0.005729818344116211,
+    "convergence_episodes": 0,
+    "mean_episode_reward": 734.4284422683716,
+    "std_episode_reward": 1016.4209450585761
+  },
+  "PID": {
+    "diag_accuracy": 0.1654,
+    "diag_precision": {
+      "0": 0.3919282511210762,
+      "1": 0.1369724254361283,
+      "2": 0,
+      "3": 0
+    },
+    "diag_recall": {
+      "0": 0.14304418985270048,
+      "1": 0.9191842900302115,
+      "2": 0.0,
+      "3": 0.0
+    },
+    "diag_f1": {
+      "0": 0.2095923261390887,
+      "1": 0.23841708296601039,
+      "2": 0,
+      "3": 0
+    },
+    "detection_delay_mean": 1.5,
+    "detection_delay_std": 4.2130748865881795,
+    "false_alarm_rate": 0.8569558101472995,
+    "pmax_maintenance_rate": 0.5320459645274086,
+    "control_smoothness": 0.16667986215509162,
+    "protection_accuracy": 0.0,
+    "variable_cond_accuracy": 0.0,
+    "composite_fault_accuracy": 0.0,
+    "training_time": 0.0,
+    "inference_time_mean": 0.01650846004486084,
+    "convergence_episodes": 0,
+    "mean_episode_reward": 223.30739561489906,
+    "std_episode_reward": 1202.0219042053343
+  }
+}

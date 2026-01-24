@@ -65,7 +65,7 @@ class DiagnosticAgent:
             deterministic: 是否确定性输出
             
         Returns:
-            动作字典 {'fault_type', 'severity', 'confidence'}
+            动作字典 {'fault_type', 'severity', 'confidence', 'log_prob', 'value'}
         """
         with torch.no_grad():
             obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
@@ -74,7 +74,9 @@ class DiagnosticAgent:
         return {
             'fault_type': actions['fault_type'].item(),
             'severity': actions['severity'].cpu().numpy().flatten()[0],
-            'confidence': actions['confidence'].cpu().numpy().flatten()[0]
+            'confidence': actions['confidence'].cpu().numpy().flatten()[0],
+            'log_prob': log_probs.cpu().numpy().flatten()[0],
+            'value': value.item()
         }
     
     def get_value(self, obs: np.ndarray) -> float:

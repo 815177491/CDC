@@ -15,7 +15,7 @@ import time
 from tqdm import tqdm
 
 import sys
-sys.path.append('../..')
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from engine import MarineEngine0D, OperatingCondition
 

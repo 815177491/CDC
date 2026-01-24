@@ -54,3 +54,6 @@ calibration_data.csv
 
 # Logs
 *.log
+
+# checkpoints
+*.pt
