@@ -110,7 +110,7 @@ class DataPreprocessingVisualizer:
             }
             
             # 快速读取小样本估算总行数
-            first_chunk = pd.read_csv('calibration_data.csv', nrows=1000)
+            first_chunk = pd.read_csv('data/calibration_data.csv', nrows=1000)
             
             # 逐段分析
             segment_stats = []
@@ -120,7 +120,7 @@ class DataPreprocessingVisualizer:
                 skip_rows = seg_idx * chunk_size + 1  # +1 跳过表头
                 
                 try:
-                    df_seg = pd.read_csv('calibration_data.csv', 
+                    df_seg = pd.read_csv('data/calibration_data.csv', 
                                         skiprows=range(1, skip_rows),
                                         nrows=chunk_size)
                     
@@ -278,10 +278,10 @@ class DataPreprocessingVisualizer:
             
             # 读取数据
             if use_full_data:
-                df = pd.read_csv('calibration_data.csv')
-                print(f"  已读取 {len(df):,} 行数据 (全部数据, 约 {df.memory_usage(deep=True).sum() / 1024**2:.0f} MB)")
+                df = pd.read_csv('data/calibration_data.csv')
+                print(f"  已读取 {len(df):,} 行数据 (全部数据,约 {df.memory_usage(deep=True).sum() / 1024**2:.0f} MB)")
             else:
-                df = pd.read_csv('calibration_data.csv',
+                df = pd.read_csv('data/calibration_data.csv',
                                skiprows=range(1, skip_rows),
                                nrows=chunk_size)
                 print(f"  已读取 {len(df):,} 行数据")
