@@ -1,77 +1,59 @@
 {
-  "methods": [
-    "PID",
-    "DQN",
-    "SAC",
-    "TDMPC2",
-    "DPMD"
-  ],
-  "scores": {
-    "PID": -0.1468580243468871,
-    "DQN": 119.99611304191627,
-    "SAC": 118.61384738681787,
-    "TDMPC2": 109.69668843417023,
-    "DPMD": 89.40006928630022
-  },
-  "rankings": {
-    "DQN": 1,
-    "SAC": 2,
-    "TDMPC2": 3,
-    "DPMD": 4,
-    "PID": 5
-  },
-  "best_method": "DQN",
-  "config": {
-    "n_episodes": 100,
-    "max_steps_per_episode": 200,
-    "eval_frequency": 50,
-    "n_eval_episodes": 3,
-    "state_dim": 8,
-    "action_dim": 5,
-    "device": "cuda",
-    "batch_size": 256,
-    "seeds": [
-      42,
-      123,
-      456,
-      789,
-      1024
-    ],
-    "save_dir": "results/comparison"
-  },
-  "PID": {
-    "mean_accuracy": 0.00498,
-    "mean_reward": -1111.5352674782296,
-    "std_reward": 51.14531969552033,
-    "mean_convergence": 0.0,
-    "mean_training_time": 0.5232155323028564
-  },
-  "DQN": {
-    "mean_accuracy": 0.8755499999999999,
-    "mean_reward": 1747.901177630119,
-    "std_reward": 14.699425862932742,
-    "mean_convergence": 9.0,
-    "mean_training_time": 86.08437252044678
-  },
-  "SAC": {
-    "mean_accuracy": 0.87148,
-    "mean_reward": 1765.2119095573398,
-    "std_reward": 14.264034070531288,
-    "mean_convergence": 13.2,
-    "mean_training_time": 359.0809980392456
-  },
-  "TDMPC2": {
-    "mean_accuracy": 0.9050799999999999,
-    "mean_reward": 1689.1162811390077,
-    "std_reward": 19.896852790987698,
-    "mean_convergence": 3.6,
-    "mean_training_time": 740.3996788501739
-  },
-  "DPMD": {
-    "mean_accuracy": 0.6659400000000001,
-    "mean_reward": 1122.924556552618,
-    "std_reward": 838.4250562212068,
-    "mean_convergence": 24.0,
-    "mean_training_time": 315.53690376281736
-  }
+  "timestamp": "2026-01-24T12:07:38.366469",
+  "results": [
+    {
+      "method": "mappo",
+      "n_episodes": 30,
+      "avg_reward": 0.726064715432176,
+      "std_reward": 213.16735730315108,
+      "avg_diag_accuracy": 0.2678333333333333,
+      "std_diag_accuracy": 0.44116263692908336,
+      "avg_detection_delay": 126.7,
+      "avg_violations": 0.0,
+      "total_violations": 0,
+      "fault_type_accuracy": {
+        "INJECTION_TIMING": 0.004,
+        "NONE": 0.0,
+        "INJECTOR_DRIFT": 0.999375,
+        "FUEL_DEGRADATION": 0.0,
+        "CYLINDER_LEAK": 0.0
+      }
+    },
+    {
+      "method": "qmix",
+      "n_episodes": 30,
+      "avg_reward": -75.36632098929809,
+      "std_reward": 210.72777725437086,
+      "avg_diag_accuracy": 0.16666666666666666,
+      "std_diag_accuracy": 0.37267799624996495,
+      "avg_detection_delay": 166.66666666666666,
+      "avg_violations": 0.0,
+      "total_violations": 0,
+      "fault_type_accuracy": {
+        "NONE": 0.0,
+        "INJECTION_TIMING": 0.0,
+        "FUEL_DEGRADATION": 0.0,
+        "INJECTOR_DRIFT": 1.0,
+        "CYLINDER_LEAK": 0.0
+      }
+    },
+    {
+      "method": "independent",
+      "n_episodes": 30,
+      "avg_reward": -48.796022372996454,
+      "std_reward": 133.5251417720068,
+      "avg_diag_accuracy": 0.24316666666666667,
+      "std_diag_accuracy": 0.21817990792513922,
+      "avg_detection_delay": 56.1,
+      "avg_violations": 0.0,
+      "total_violations": 0,
+      "fault_type_accuracy": {
+        "INJECTION_TIMING": 0.438125,
+        "FUEL_DEGRADATION": 0.44437499999999996,
+        "NONE": 0.0,
+        "CYLINDER_LEAK": 0.021666666666666667,
+        "INJECTOR_DRIFT": 0.0525
+      }
+    }
+  ]
 }

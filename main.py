@@ -1,19 +1,20 @@
 """
-零维船用柴油机仿真与控诊协同系统
-================================
+双智能体诊-控协同强化学习系统
+=============================
 
-主入口脚本 - 集成所有模块并运行完整演示
+主入口脚本 - 集成RL诊断、RL控制和多智能体训练
 
-功能:
-1. 加载校准数据并完成三阶段参数校准
-2. 运行故障注入仿真
-3. 演示控诊协同控制效果
-4. 生成验证图表
+新特性 (v2.0):
+1. 基于SAC的RL诊断智能体 (替代规则基诊断)
+2. MAPPO/QMIX多智能体协同训练
+3. 完整的双智能体评估体系
+4. 诊-控协同时序可视化
 
 使用方法:
-    python main.py --mode demo     # 运行完整演示
-    python main.py --mode calibrate  # 仅运行校准
-    python main.py --mode dashboard  # 启动交互式仪表盘
+    python main.py --mode train-mappo --episodes 500  # MAPPO训练
+    python main.py --mode train-qmix --episodes 500   # QMIX训练
+    python main.py --mode eval --model models/dual_agent/final
+    python main.py --mode demo --model models/dual_agent/final
 """
 
 import sys
@@ -25,19 +26,21 @@ import warnings
 # 添加模块路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from engine import MarineEngine0D, OperatingCondition
-from calibration import EngineCalibrator, CalibrationDataLoader
-from diagnosis import FaultDiagnoser, FaultInjector, FaultType
-from control import SynergyController, ControlMode
-from visualization import CalibrationPlotter, SynergyPlotter, PerformanceRadar, CalibrationProcessPlotter
+# 导入环境和智能体模块
+from environments import create_dual_agent_env
+from agents.rl_diagnosis_agent import create_rl_diagnosis_agent
+from agents.multi_agent_algorithms import get_multi_agent_algorithm
+from agents.rl_algorithms import SAC
+from experiments.dual_agent_evaluation import DualAgentEvaluator
+from visualization.dual_agent_plots import DualAgentVisualizer
 
-# 导入双智能体模块
+# 可选导入旧模块 (用于兼容性)
 try:
-    from agents import CoordinatorAgent, DiagnosisAgent, ControlAgent
-    AGENTS_AVAILABLE = True
+    from engine import MarineEngine0D
+    ENGINE_AVAILABLE = True
 except ImportError:
-    AGENTS_AVAILABLE = False
-    print("警告: agents模块未找到，将使用传统控制器")
+    ENGINE_AVAILABLE = False
+    print("警告: engine模块不可用")
 
 
 def run_calibration(csv_path: str = "calibration_data.csv", 
@@ -455,6 +458,118 @@ def run_dashboard(engine: MarineEngine0D):
     dashboard.run_interactive()
 
 
+def run_dual_agent_training(args):
+    """
+    运行双智能体训练 (MAPPO或QMIX)
+    
+    Args:
+        args: 包含以下字段:
+            - dual_mode: 'mappo' 或 'qmix'
+            - episodes: 训练回合数
+            - eval_interval: 评估间隔
+            - save_dir: 模型保存目录
+            - device: GPU或CPU
+    """
+    from scripts.train_dual_agents import DualAgentTrainer
+    
+    print(f"\n{'='*70}")
+    print(f"启动双智能体训练 - 模式: {args.dual_mode.upper()}")
+    print(f"{'='*70}\n")
+    
+    # 创建保存目录
+    os.makedirs(args.save_dir, exist_ok=True)
+    
+    # 创建训练配置
+    config = {
+        'training_mode': args.dual_mode,  # 'independent', 'mappo', 'qmix'
+        'n_episodes': args.episodes,
+        'eval_interval': args.eval_interval,
+        'save_dir': args.save_dir,
+        'log_dir': os.path.join(args.save_dir, 'logs'),
+    }
+    
+    # 创建训练器
+    trainer = DualAgentTrainer(config=config)
+    
+    # 运行训练
+    print(f"开始训练 {args.episodes} 个回合...")
+    training_history = trainer.train()
+    
+    print("\n" + "="*70)
+    print("训练完成!")
+    print(f"模型已保存至: {args.save_dir}")
+    print("="*70 + "\n")
+    
+    # 返回最终智能体用于后续操作
+    return trainer.diag_agent, trainer.ctrl_agent, trainer.env
+
+
+def run_dual_agent_evaluation(args):
+    """
+    评估训练好的双智能体模型
+    
+    Args:
+        args: 包含以下字段:
+            - model_dir: 模型所在目录
+            - num_episodes: 评估回合数
+            - device: GPU或CPU
+    """
+    print(f"\n{'='*70}")
+    print("启动双智能体评估")
+    print(f"{'='*70}\n")
+    
+    # 加载模型
+    model_path = os.path.join(args.model_dir, 'final')
+    if not os.path.exists(f"{model_path}_diag.pt"):
+        print(f"错误: 找不到模型文件 {model_path}_diag.pt")
+        return
+    
+    # 创建环境和智能体
+    env = create_dual_agent_env()
+    diag_agent = create_rl_diagnosis_agent(device=args.device)
+    ctrl_agent = SAC(state_dim=10, action_dim=2, device=args.device)
+    
+    # 加载权重
+    diag_agent.load(f"{model_path}_diag.pt")
+    ctrl_agent.load(f"{model_path}_ctrl.pt")
+    
+    # 运行评估
+    evaluator = DualAgentEvaluator(diag_agent, ctrl_agent, env)
+    
+    n_eval = args.num_episodes
+    print(f"运行诊断评估 ({n_eval} 回合)...")
+    diag_metrics = evaluator.evaluate_diagnosis(n_episodes=n_eval)
+    
+    print(f"运行控制评估 ({n_eval} 回合)...")
+    ctrl_metrics = evaluator.evaluate_control(n_episodes=n_eval)
+    
+    print(f"运行协同评估 ({n_eval} 回合)...")
+    coop_metrics = evaluator.evaluate_cooperation(n_episodes=n_eval)
+    
+    # 输出结果
+    print("\n" + "="*70)
+    print("评估结果")
+    print("="*70)
+    
+    print("\n诊断性能:")
+    print(f"  - 准确率: {diag_metrics['accuracy']:.1%}")
+    print(f"  - 检测延迟: {diag_metrics['detection_delay']:.2f} 步")
+    print(f"  - 虚报率: {diag_metrics.get('false_positive_rate', 0):.1%}")
+    print(f"  - 漏报率: {diag_metrics.get('false_negative_rate', 0):.1%}")
+    
+    print("\n控制性能:")
+    print(f"  - Pmax RMSE: {ctrl_metrics['pmax_rmse']:.4f}")
+    print(f"  - 违规次数: {ctrl_metrics['violation_count']}")
+    print(f"  - 燃油经济性: {ctrl_metrics.get('fuel_economy', 0):.2f}")
+    
+    print("\n协同性能:")
+    print(f"  - 端到端成功率: {coop_metrics['end_to_end_success_rate']:.1%}")
+    print(f"  - 诊断正确后的控制成功率: {coop_metrics.get('control_success_given_correct_diag', 0):.1%}")
+    print("="*70 + "\n")
+    
+    return diag_metrics, ctrl_metrics, coop_metrics
+
+
 def run_demo():
     """运行完整演示流程"""
     print("\n" + "=" * 70)
@@ -488,15 +603,30 @@ def run_demo():
 
 
 def main():
-    """主函数"""
+    """主函数 - 支持传统模式和双智能体强化学习模式"""
     parser = argparse.ArgumentParser(
-        description='零维船用柴油机仿真与控诊协同系统'
+        description='零维船用柴油机仿真与控诊协同系统',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例用法:
+  
+  # ===== 传统单智能体模式 =====
+  python main.py --mode demo              # 完整演示
+  python main.py --mode calibrate         # 仅校准
+  python main.py --mode simulate          # 仅仿真
+  
+  # ===== 双智能体强化学习模式 (新) =====
+  python main.py --mode train-mappo --episodes 500 --save-dir models/dual_mappo
+  python main.py --mode train-qmix --episodes 500 --save-dir models/dual_qmix
+  python main.py --mode eval-dual --model-dir models/dual_mappo --num-episodes 100
+        """
     )
     parser.add_argument(
         '--mode', type=str, default='demo',
-        choices=['demo', 'calibrate', 'simulate', 'dashboard', 'plot', 'agents'],
-        help='运行模式: demo(完整演示), calibrate(仅校准), '
-             'simulate(仅仿真), dashboard(交互式), plot(仅绑图), agents(双智能体演示)'
+        choices=['demo', 'calibrate', 'simulate', 'dashboard', 'plot', 'agents',
+                 'train-mappo', 'train-qmix', 'train-independent',
+                 'eval-dual', 'demo-dual'],
+        help='运行模式'
     )
     parser.add_argument(
         '--csv', type=str, default='calibration_data.csv',
@@ -505,6 +635,34 @@ def main():
     parser.add_argument(
         '--points', type=int, default=5,
         help='校准使用的工况点数量'
+    )
+    
+    # 双智能体训练参数
+    parser.add_argument(
+        '--episodes', type=int, default=500,
+        help='双智能体训练回合数 (default: 500)'
+    )
+    parser.add_argument(
+        '--eval-interval', type=int, default=50,
+        help='评估间隔 (default: 50)'
+    )
+    parser.add_argument(
+        '--save-dir', type=str, default='models/dual_agent',
+        help='模型保存目录 (default: models/dual_agent)'
+    )
+    parser.add_argument(
+        '--device', type=str, default='cuda',
+        help='计算设备 (default: cuda)'
+    )
+    
+    # 双智能体评估参数
+    parser.add_argument(
+        '--model-dir', type=str, default='models/dual_agent',
+        help='加载模型的目录'
+    )
+    parser.add_argument(
+        '--num-episodes', type=int, default=100,
+        help='评估回合数 (default: 100)'
     )
     
     args = parser.parse_args()
@@ -552,8 +710,8 @@ def main():
         print("  双智能体架构演示")
         print("=" * 70)
         
-        if not AGENTS_AVAILABLE:
-            print("错误: agents模块不可用")
+        if not ENGINE_AVAILABLE:
+            print("错误: engine模块不可用")
             return
         
         engine = run_calibration(args.csv, args.points)
@@ -567,6 +725,98 @@ def main():
         print("\n双智能体演示完成!")
         import matplotlib.pyplot as plt
         plt.show()
+    
+    # ===== 新增: 双智能体强化学习模式 =====
+    elif args.mode in ['train-mappo', 'train-qmix', 'train-independent']:
+        # 提取模式名称
+        dual_mode = args.mode.split('-')[1]  # 'mappo', 'qmix', 或 'independent'
+        args.dual_mode = dual_mode
+        run_dual_agent_training(args)
+    
+    elif args.mode == 'eval-dual':
+        run_dual_agent_evaluation(args)
+    
+    elif args.mode == 'demo-dual':
+        print("\n" + "="*70)
+        print("启动双智能体演示 - 可视化协同过程")
+        print("="*70 + "\n")
+        
+        import torch
+        
+        # 检查模型
+        model_path = os.path.join(args.model_dir, 'final')
+        if not os.path.exists(f"{model_path}_diag.pt"):
+            print(f"错误: 找不到模型文件 {model_path}_diag.pt")
+            print(f"请先运行训练: python main.py --mode train-mappo --save-dir {args.model_dir}")
+            return
+        
+        # 创建环境和智能体
+        env = create_dual_agent_env()
+        diag_agent = create_rl_diagnosis_agent(device=args.device)
+        ctrl_agent = SAC(state_dim=10, action_dim=2, device=args.device)
+        
+        # 加载权重
+        diag_agent.load(f"{model_path}_diag.pt")
+        ctrl_agent.load(f"{model_path}_ctrl.pt")
+        
+        # 运行5个演示回合
+        print("正在运行演示回合...")
+        os.makedirs(args.model_dir, exist_ok=True)
+        
+        from matplotlib import pyplot as plt
+        
+        trajectory_data_list = []
+        for ep in range(5):
+            obs = env.reset()
+            ep_data = {'diag_obs': [], 'ctrl_obs': [], 'diag_actions': [], 'ctrl_actions': [],
+                       'diag_rewards': [], 'ctrl_rewards': [], 'ground_truth': [],
+                       'pmax': [], 'vit': [], 'fuel': []}
+            done = False
+            
+            while not done:
+                # 诊断智能体执行
+                diag_action, _ = diag_agent.select_action(obs[0], training=False)
+                
+                # 控制智能体执行
+                ctrl_action, _ = ctrl_agent.select_action(obs[1], training=False)
+                
+                # 环境步进
+                (diag_obs, ctrl_obs), (diag_reward, ctrl_reward), done, info = env.step(
+                    (diag_action, ctrl_action)
+                )
+                
+                ep_data['diag_obs'].append(obs[0])
+                ep_data['ctrl_obs'].append(obs[1])
+                ep_data['diag_actions'].append(diag_action)
+                ep_data['ctrl_actions'].append(ctrl_action)
+                ep_data['diag_rewards'].append(diag_reward)
+                ep_data['ctrl_rewards'].append(ctrl_reward)
+                ep_data['ground_truth'].append(info.get('ground_truth_fault', -1))
+                ep_data['pmax'].append(info.get('pmax', 0))
+                ep_data['vit'].append(info.get('vit', 0))
+                ep_data['fuel'].append(info.get('fuel_ratio', 0))
+                
+                obs = (diag_obs, ctrl_obs)
+            
+            trajectory_data_list.append(ep_data)
+            print(f"  演示回合 {ep+1}/5 完成 (长度: {len(ep_data['ground_truth'])} 步)")
+        
+        # 生成可视化
+        print("\n生成可视化...")
+        visualizer = DualAgentVisualizer()
+        
+        # 绘制协同响应 (使用第一个回合)
+        ep_data = trajectory_data_list[0]
+        visualizer.plot_coordination_response(
+            episode_data=ep_data,
+            save_path=os.path.join(args.model_dir, 'coordination_response.png')
+        )
+        
+        print(f"可视化已保存至: {args.model_dir}/coordination_response.png")
+        print("演示完成!")
+
+
+
 
 
 if __name__ == "__main__":
