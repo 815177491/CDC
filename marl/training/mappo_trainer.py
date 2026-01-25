@@ -16,7 +16,7 @@ import time
 
 from ..env import EngineEnv, EngineEnvConfig
 from ..agents import DiagnosticAgent, ControlAgent
-from ..networks import SharedCritic
+from ..networks import SharedCritic, PIKANDiagnosticAgent
 from .buffer import RolloutBuffer
 
 
@@ -33,6 +33,8 @@ class MAPPOTrainer:
     def __init__(
         self,
         env_config: Optional[EngineEnvConfig] = None,
+        use_pikan: bool = False,
+        physics_weight: float = 0.1,
         diag_lr: float = 3e-4,
         ctrl_lr: float = 3e-4,
         critic_lr: float = 3e-4,
@@ -80,14 +82,26 @@ class MAPPOTrainer:
         self.diag_obs_dim = diag_obs_dim
         self.ctrl_obs_dim = ctrl_obs_dim
         self.ctrl_obs_dim_extended = ctrl_obs_dim_extended
+        self.use_pikan = use_pikan
+        self.physics_weight = physics_weight
         
-        # 创建智能体（只有Actor功能）
-        self.diag_agent = DiagnosticAgent(
-            obs_dim=diag_obs_dim,
-            n_fault_types=self.env_config.n_fault_types,
-            lr=diag_lr,
-            device=device
-        )
+        # 创建诊断智能体（根据配置选择类型）
+        if use_pikan:
+            self.diag_agent = PIKANDiagnosticAgent(
+                obs_dim=diag_obs_dim,
+                n_fault_types=self.env_config.n_fault_types,
+                lr=diag_lr,
+                physics_weight=physics_weight,
+                device=device
+            )
+            print("[PIKAN] 使用 Physics-Informed KAN 诊断智能体")
+        else:
+            self.diag_agent = DiagnosticAgent(
+                obs_dim=diag_obs_dim,
+                n_fault_types=self.env_config.n_fault_types,
+                lr=diag_lr,
+                device=device
+            )
         
         self.ctrl_agent = ControlAgent(
             obs_dim=ctrl_obs_dim_extended,  # 使用扩展维度

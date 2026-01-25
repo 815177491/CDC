@@ -25,13 +25,16 @@ class DiagnosticNetwork(nn.Module):
         obs_dim: int,
         n_fault_types: int = 4,
         hidden_dim: int = 128,
-        use_lstm: bool = True
+        use_lstm: bool = True,
+        use_internal_critic: bool = True
     ):
         super().__init__()
         
         self.obs_dim = obs_dim
         self.n_fault_types = n_fault_types
         self.use_lstm = use_lstm
+        self.use_internal_critic = use_internal_critic
+        self.hidden_dim = hidden_dim
         
         # 特征编码器
         self.encoder = nn.Sequential(
@@ -57,8 +60,11 @@ class DiagnosticNetwork(nn.Module):
         self.confidence_alpha = nn.Linear(hidden_dim, 1)
         self.confidence_beta = nn.Linear(hidden_dim, 1)
         
-        # Critic头
-        self.critic = nn.Linear(hidden_dim, 1)
+        # Critic头（可选，使用 SharedCritic 时可禁用以减少冗余参数）
+        if use_internal_critic:
+            self.critic = nn.Linear(hidden_dim, 1)
+        else:
+            self.critic = None
     
     def reset_hidden(self, batch_size: int = 1):
         """重置LSTM隐状态"""
@@ -137,7 +143,12 @@ class DiagnosticNetwork(nn.Module):
         }
         
         log_probs = fault_log_prob + sev_log_prob + conf_log_prob
-        value = self.critic(features)
+        
+        # 内部 Critic 或返回 None
+        if self.critic is not None:
+            value = self.critic(features)
+        else:
+            value = torch.zeros(features.shape[0], 1, device=features.device)
         
         return actions, log_probs, value
     
@@ -170,7 +181,11 @@ class DiagnosticNetwork(nn.Module):
         
         log_probs = fault_log_prob + sev_log_prob + conf_log_prob
         entropy = fault_entropy
-        value = self.critic(features)
+        
+        if self.critic is not None:
+            value = self.critic(features)
+        else:
+            value = torch.zeros(features.shape[0], 1, device=features.device)
         
         return log_probs, entropy, value
 
@@ -189,7 +204,8 @@ class ControlNetwork(nn.Module):
         timing_range: Tuple[float, float] = (-5.0, 5.0),
         fuel_range: Tuple[float, float] = (0.85, 1.15),
         n_protection_levels: int = 4,
-        hidden_dim: int = 128
+        hidden_dim: int = 128,
+        use_internal_critic: bool = True
     ):
         super().__init__()
         
@@ -197,6 +213,7 @@ class ControlNetwork(nn.Module):
         self.timing_range = timing_range
         self.fuel_range = fuel_range
         self.n_protection_levels = n_protection_levels
+        self.use_internal_critic = use_internal_critic
         
         # 特征编码器
         self.encoder = nn.Sequential(
@@ -217,8 +234,11 @@ class ControlNetwork(nn.Module):
         # Actor头 - 保护级别（分类）
         self.protection_head = nn.Linear(hidden_dim, n_protection_levels)
         
-        # Critic头
-        self.critic = nn.Linear(hidden_dim, 1)
+        # Critic头（可选）
+        if use_internal_critic:
+            self.critic = nn.Linear(hidden_dim, 1)
+        else:
+            self.critic = None
     
     def forward(
         self,
@@ -277,7 +297,11 @@ class ControlNetwork(nn.Module):
         }
         
         log_probs = timing_log_prob + fuel_log_prob + protection_log_prob
-        value = self.critic(features)
+        
+        if self.critic is not None:
+            value = self.critic(features)
+        else:
+            value = torch.zeros(features.shape[0], 1, device=features.device)
         
         return actions, log_probs.sum(dim=-1, keepdim=True), value
     
@@ -310,7 +334,11 @@ class ControlNetwork(nn.Module):
         
         log_probs = timing_log_prob + fuel_log_prob + protection_log_prob
         entropy = protection_entropy
-        value = self.critic(features)
+        
+        if self.critic is not None:
+            value = self.critic(features)
+        else:
+            value = torch.zeros(features.shape[0], 1, device=features.device)
         
         return log_probs, entropy, value
 

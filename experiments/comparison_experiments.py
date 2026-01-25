@@ -47,6 +47,7 @@ class EvaluationMetrics:
     
     # 控制性能
     pmax_maintenance_rate: float = 0.0
+    pmax_exceed_rate: float = 0.0  # Pmax 超限比例（新增）
     control_smoothness: float = 0.0
     protection_accuracy: float = 0.0
     
@@ -163,7 +164,15 @@ class ThresholdBaseline(BaselineMethod):
 
 
 class PIDControlBaseline(BaselineMethod):
-    """PID控制基线"""
+    """
+    PID控制基线
+    
+    参数来源说明:
+    - 默认参数 (kp=0.5, ki=0.1, kd=0.05) 基于 Ziegler-Nichols 开环调参法经验值
+    - 可通过 load_tuned_params() 加载网格搜索优化后的参数
+    - 调参脚本: experiments/pid_tuning.py
+    - 评估准则: ITAE (Integral of Time-weighted Absolute Error)
+    """
     
     def __init__(self, kp: float = 0.5, ki: float = 0.1, kd: float = 0.05):
         self.kp = kp
@@ -173,6 +182,31 @@ class PIDControlBaseline(BaselineMethod):
         self.integral = 0.0
         self.prev_error = 0.0
         self.pmax_target = 150.0
+    
+    @classmethod
+    def load_tuned_params(cls, params_path: str = './pid_tuning_results/best_params.json'):
+        """
+        从调优结果加载最优参数
+        
+        Args:
+            params_path: 调优参数文件路径
+            
+        Returns:
+            使用最优参数初始化的 PIDControlBaseline 实例
+        """
+        try:
+            with open(params_path, 'r') as f:
+                params = json.load(f)
+            print(f"[PID] 加载调优参数: Kp={params['kp']:.3f}, Ki={params['ki']:.3f}, Kd={params['kd']:.3f}")
+            return cls(kp=params['kp'], ki=params['ki'], kd=params['kd'])
+        except FileNotFoundError:
+            print(f"[PID] 未找到调优参数文件 {params_path}，使用默认参数")
+            return cls()
+    
+    def reset(self):
+        """重置控制器状态（每个 episode 开始时调用）"""
+        self.integral = 0.0
+        self.prev_error = 0.0
     
     def diagnose(self, obs: np.ndarray) -> Dict:
         # PID基线使用简单阈值诊断
@@ -187,8 +221,9 @@ class PIDControlBaseline(BaselineMethod):
         pmax = obs[0] * 200.0
         error = (self.pmax_target - pmax) / self.pmax_target
         
-        # PID计算
+        # PID计算（带积分抗饱和）
         self.integral += error
+        self.integral = np.clip(self.integral, -10, 10)  # 抗积分饱和
         derivative = error - self.prev_error
         self.prev_error = error
         
@@ -204,7 +239,7 @@ class PIDControlBaseline(BaselineMethod):
         }
     
     def name(self) -> str:
-        return "PID"
+        return f"PID(Kp={self.kp:.2f})"
 
 
 class ExperimentRunner:
@@ -331,7 +366,9 @@ class ExperimentRunner:
             metrics.detection_delay_std = np.std(all_detection_delays)
         
         metrics.false_alarm_rate = false_alarms / total_healthy if total_healthy > 0 else 0
-        metrics.pmax_maintenance_rate = np.mean([r for r in all_pmax_ratios if r < 1.5])
+        # 修复：移除幸存者偏差过滤，统计所有数据
+        metrics.pmax_maintenance_rate = np.mean(all_pmax_ratios) if all_pmax_ratios else 1.0
+        metrics.pmax_exceed_rate = np.mean([1 if r > 1.1 else 0 for r in all_pmax_ratios]) if all_pmax_ratios else 0.0
         metrics.control_smoothness = 1.0 / (1.0 + np.mean(all_timing_changes))
         metrics.mean_episode_reward = np.mean(episode_rewards)
         metrics.std_episode_reward = np.std(episode_rewards)
@@ -364,24 +401,65 @@ class ExperimentRunner:
     def run_ablation_experiments(
         self,
         full_method_diag: Callable,
-        full_method_ctrl: Callable
+        full_method_ctrl: Callable,
+        mlp_diag: Optional[Callable] = None,
+        pikan_no_physics_diag: Optional[Callable] = None
     ) -> Dict[str, EvaluationMetrics]:
-        """运行消融实验"""
+        """
+        运行消融实验
+        
+        Args:
+            full_method_diag: 完整方法的诊断函数 (PIKAN)
+            full_method_ctrl: 完整方法的控制函数
+            mlp_diag: MLP基线诊断函数（用于 MLP vs KAN 消融）
+            pikan_no_physics_diag: 无物理约束的PIKAN诊断函数
+        """
+        
+        # ===== 消融1：完整方法 vs 只有诊断 vs 只有控制 =====
         
         # 完整方法
         self.evaluate_method("PIKAN+TDMPC2", full_method_diag, full_method_ctrl)
         
-        # 消融1：只有诊断（无控制）
+        # 只有诊断（无控制）
         def no_control(obs, diag):
             return {'timing_offset': 0, 'fuel_adj': 1.0, 'protection_level': 0}
         
         self.evaluate_method("Only_Diagnosis", full_method_diag, no_control)
         
-        # 消融2：只有控制（无诊断）
+        # 只有控制（无诊断）
         def no_diagnosis(obs):
             return {'fault_type': 0, 'severity': 0.0, 'confidence': 1.0}
         
         self.evaluate_method("Only_Control", no_diagnosis, full_method_ctrl)
+        
+        # ===== 消融2：MLP vs KAN（如果提供了MLP基线）=====
+        if mlp_diag is not None:
+            self.evaluate_method("MLP_Baseline", mlp_diag, full_method_ctrl)
+        
+        # ===== 消融3：With/Without Physics Loss =====
+        if pikan_no_physics_diag is not None:
+            self.evaluate_method("PIKAN_NoPhysics", pikan_no_physics_diag, full_method_ctrl)
+        
+        return self.results
+    
+    def run_architecture_ablation(
+        self,
+        agents_dict: Dict[str, Tuple[Callable, Callable]]
+    ) -> Dict[str, EvaluationMetrics]:
+        """
+        运行架构消融实验
+        
+        Args:
+            agents_dict: 架构名称 -> (诊断函数, 控制函数) 的映射
+                示例: {
+                    'PINN+KAN': (pikan_diag, ctrl),
+                    'PINN_Only': (pinn_diag, ctrl),
+                    'KAN_Only': (kan_diag, ctrl),
+                    'MLP_Baseline': (mlp_diag, ctrl)
+                }
+        """
+        for name, (diag_fn, ctrl_fn) in agents_dict.items():
+            self.evaluate_method(name, diag_fn, ctrl_fn)
         
         return self.results
     
@@ -398,28 +476,29 @@ class ExperimentRunner:
     
     def print_comparison_table(self):
         """打印对比表格"""
-        print("\n" + "=" * 80)
+        print("\n" + "=" * 100)
         print("实验结果对比")
-        print("=" * 80)
+        print("=" * 100)
         
-        headers = ["方法", "诊断准确率", "检测延迟", "误报率", "性能维持", "推理时间"]
-        row_format = "{:<20}" + "{:<15}" * (len(headers) - 1)
+        headers = ["方法", "诊断准确率", "检测延迟", "误报率", "性能维持", "超限率", "推理时间"]
+        row_format = "{:<20}" + "{:<12}" * (len(headers) - 1)
         
         print(row_format.format(*headers))
-        print("-" * 80)
+        print("-" * 100)
         
         for method, metrics in self.results.items():
             row = [
                 method,
                 f"{metrics.diag_accuracy:.3f}",
-                f"{metrics.detection_delay_mean:.2f}±{metrics.detection_delay_std:.2f}",
+                f"{metrics.detection_delay_mean:.1f}±{metrics.detection_delay_std:.1f}",
                 f"{metrics.false_alarm_rate:.3f}",
                 f"{metrics.pmax_maintenance_rate:.3f}",
+                f"{metrics.pmax_exceed_rate:.3f}",
                 f"{metrics.inference_time_mean:.2f}ms"
             ]
             print(row_format.format(*row))
         
-        print("=" * 80)
+        print("=" * 100)
 
 
 def run_experiments():

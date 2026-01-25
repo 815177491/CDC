@@ -330,22 +330,26 @@ class PIKANDiagnosticAgent:
     def act(self, obs: np.ndarray, deterministic: bool = False) -> Dict:
         with torch.no_grad():
             obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
-            actions, _, _, _ = self.network(obs_tensor, compute_physics_loss=False)
+            actions, log_probs, value, _ = self.network(obs_tensor, compute_physics_loss=False)
         
         return {
             'fault_type': actions['fault_type'].item(),
             'severity': actions['severity'].cpu().numpy().flatten()[0],
-            'confidence': actions['confidence'].cpu().numpy().flatten()[0]
+            'confidence': actions['confidence'].cpu().numpy().flatten()[0],
+            'log_prob': log_probs.cpu().numpy().flatten()[0],
+            'value': value.item()
         }
     
     def update(
         self,
         obs_batch: torch.Tensor,
         action_batch: Dict[str, torch.Tensor],
+        old_log_probs: torch.Tensor,
         advantages: torch.Tensor,
         returns: torch.Tensor,
-        old_log_probs: torch.Tensor,
-        clip_epsilon: float = 0.2
+        clip_epsilon: float = 0.2,
+        entropy_coef: float = 0.01,
+        value_coef: float = 0.5
     ) -> Dict[str, float]:
         """PPO + Physics损失更新"""
         
@@ -359,11 +363,11 @@ class PIKANDiagnosticAgent:
         surr2 = torch.clamp(ratio, 1 - clip_epsilon, 1 + clip_epsilon) * advantages
         policy_loss = -torch.min(surr1, surr2).mean()
         
-        # 价值损失
+        # 价值损失（使用传入的系数，与 SharedCritic 配合时设为 0）
         value_loss = F.mse_loss(values.squeeze(), returns)
         
-        # 总损失 = PPO损失 + 物理损失
-        total_loss = policy_loss + 0.5 * value_loss + self.physics_weight * physics_loss
+        # 总损失 = PPO损失 + 物理损失（value_coef 由 Trainer 控制）
+        total_loss = policy_loss + value_coef * value_loss + self.physics_weight * physics_loss
         
         self.optimizer.zero_grad()
         total_loss.backward()
@@ -374,7 +378,7 @@ class PIKANDiagnosticAgent:
             'policy_loss': policy_loss.item(),
             'value_loss': value_loss.item(),
             'physics_loss': physics_loss.item(),
-            'total_loss': total_loss.item()
+            'entropy': 0.0  # 与 DiagnosticAgent 接口一致
         }
     
     def save(self, path: str):
