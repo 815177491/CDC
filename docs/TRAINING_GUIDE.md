@@ -44,6 +44,7 @@ python -c "import torch; import numpy; import scipy; print('环境检查通过!'
 ```
 
 预期输出：
+
 ```
 环境检查通过!
 PyTorch: 2.5.1+cu121
@@ -60,11 +61,11 @@ pip install -r requirements.txt
 
 ## 训练脚本概述
 
-| 脚本 | 描述 | 智能体类型 |
-|------|------|-----------|
-| `experiments/train_marl.py` | 双智能体 MAPPO 训练 | 诊断智能体 + 控制智能体 |
-| `experiments/train_advanced.py` | PINN+KAN & TD-MPC2 联合训练 | 高级诊断 + 模型预测控制 |
-| `experiments/comparison_experiments.py` | 基线对比实验 | 阈值法、PID 等基线方法 |
+| 脚本                                    | 描述                        | 智能体类型              |
+| --------------------------------------- | --------------------------- | ----------------------- |
+| `experiments/train_marl.py`             | 双智能体 MAPPO 训练         | 诊断智能体 + 控制智能体 |
+| `experiments/train_advanced.py`         | PINN+KAN & TD-MPC2 联合训练 | 高级诊断 + 模型预测控制 |
+| `experiments/comparison_experiments.py` | 基线对比实验                | 阈值法、PID 等基线方法  |
 
 ---
 
@@ -96,11 +97,13 @@ python experiments/comparison_experiments.py
 基于 MAPPO 算法的双智能体强化学习训练。
 
 **基本用法：**
+
 ```powershell
 python experiments/train_marl.py --device cuda
 ```
 
 **完整参数：**
+
 ```powershell
 python experiments/train_marl.py \
     --total-steps 100000 \      # 总训练步数
@@ -120,6 +123,7 @@ python experiments/train_marl.py \
 ```
 
 **短时间测试（5000步）：**
+
 ```powershell
 python experiments/train_marl.py --total-steps 5000 --device cuda
 ```
@@ -129,11 +133,13 @@ python experiments/train_marl.py --total-steps 5000 --device cuda
 结合物理信息神经网络(PINN)、Kolmogorov-Arnold Network(KAN) 和 TD-MPC2 控制器的高级训练。
 
 **基本用法：**
+
 ```powershell
 python experiments/train_advanced.py --device cuda
 ```
 
 **完整参数：**
+
 ```powershell
 python experiments/train_advanced.py \
     --total-steps 100000 \      # 总训练步数
@@ -151,6 +157,7 @@ python experiments/train_advanced.py \
 ```
 
 **短时间测试：**
+
 ```powershell
 python experiments/train_advanced.py --total-steps 5000 --device cuda
 ```
@@ -167,10 +174,10 @@ python experiments/comparison_experiments.py
 
 ### 包含的基线方法
 
-| 方法 | 描述 |
-|------|------|
+| 方法          | 描述                       |
+| ------------- | -------------------------- |
 | **Threshold** | 基于阈值的传统故障诊断方法 |
-| **PID** | 经典 PID 控制器 |
+| **PID**       | 经典 PID 控制器            |
 
 ### 实验输出示例
 
