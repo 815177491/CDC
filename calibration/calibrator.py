@@ -2,19 +2,42 @@
 发动机参数校准器
 ================
 分步解耦的三阶段校准流程
+
+包括:
+1. 压缩段校准: 确定有效压缩比
+2. 燃烧段校准: 确定Wiebe参数 (喷油正时、燃烧持续期、形状因子)
+3. 传热段校准: 确定Woschni系数
+
+支持功能:
+- 收敛历史记录 (包含参数值)
+- 验证结果导出
+- 可视化数据生成
+
+Author: CDC Project
+Date: 2026-01-28
 """
 
+import os
+import json
 import numpy as np
+import pandas as pd
 from scipy.optimize import minimize, differential_evolution
 from typing import Dict, List, Tuple, Callable, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import warnings
+from datetime import datetime
 
 import sys
 sys.path.append('..')
 
 from engine import MarineEngine0D, OperatingCondition
 from .data_loader import CalibrationDataLoader, CalibrationPoint
+
+# 尝试导入全局配置
+try:
+    from config import PATH_CONFIG
+except ImportError:
+    PATH_CONFIG = None
 
 
 @dataclass
@@ -28,6 +51,16 @@ class CalibrationResult:
     message: str
 
 
+@dataclass
+class ConvergenceRecord:
+    """收敛记录（单次迭代）"""
+    iteration: int
+    objective_value: float
+    best_value: float
+    parameters: Dict
+    stage: str
+
+
 class EngineCalibrator:
     """
     发动机参数校准器
@@ -36,6 +69,14 @@ class EngineCalibrator:
     1. 压缩段校准: 确定压缩比和多变指数
     2. 燃烧段校准: 确定Wiebe参数
     3. 传热段校准: 确定Woschni系数
+    
+    Attributes:
+        engine: 发动机模型实例
+        data_loader: 校准数据加载器
+        calibration_points: 校准工况点列表
+        results: 各阶段校准结果
+        convergence_history: 收敛历史记录
+        validation_results: 验证结果数据
     """
     
     def __init__(self, engine: MarineEngine0D, 
@@ -56,12 +97,22 @@ class EngineCalibrator:
         # 校准结果
         self.results: Dict[str, CalibrationResult] = {}
         
+        # 收敛历史记录
+        self.convergence_history: List[ConvergenceRecord] = []
+        
+        # 验证结果
+        self.validation_results: List[Dict] = []
+        
         # 校准权重
         self.weights = {
             'P_comp': 1.0,
             'P_max': 1.0,
             'T_exhaust': 0.5
         }
+        
+        # 当前阶段的最优值跟踪
+        self._current_best_value = float('inf')
+        self._iteration_counter = 0
     
     def load_calibration_data(self, n_points: int = 5):
         """加载校准数据点"""
@@ -71,6 +122,37 @@ class EngineCalibrator:
             n_points=n_points
         )
         print(f"已加载 {len(self.calibration_points)} 个校准工况点")
+    
+    def _reset_convergence_tracking(self, stage: str):
+        """重置收敛跟踪状态"""
+        self._current_best_value = float('inf')
+        self._iteration_counter = 0
+        self._current_stage = stage
+    
+    def _record_convergence(self, objective_value: float, parameters: Dict, stage: str):
+        """
+        记录收敛历史
+        
+        Args:
+            objective_value: 当前目标函数值
+            parameters: 当前参数值
+            stage: 校准阶段名称
+        """
+        self._iteration_counter += 1
+        
+        # 更新最优值
+        if objective_value < self._current_best_value:
+            self._current_best_value = objective_value
+        
+        # 创建记录
+        record = ConvergenceRecord(
+            iteration=self._iteration_counter,
+            objective_value=objective_value,
+            best_value=self._current_best_value,
+            parameters=parameters.copy(),
+            stage=stage
+        )
+        self.convergence_history.append(record)
     
     def _point_to_condition(self, point: CalibrationPoint) -> OperatingCondition:
         """将校准点转换为运行工况"""
@@ -113,6 +195,9 @@ class EngineCalibrator:
         if not self.calibration_points:
             raise ValueError("请先加载校准数据")
         
+        # 重置收敛跟踪
+        self._reset_convergence_tracking('compression')
+        
         # 使用所有点的平均Pcomp作为目标
         target_Pcomp = np.mean([p.P_comp for p in self.calibration_points])
         
@@ -131,6 +216,13 @@ class EngineCalibrator:
                 error = ((P_comp_sim - ref_point.P_comp) / ref_point.P_comp) ** 2
             except Exception as e:
                 error = 1e6
+            
+            # 记录收敛历史
+            self._record_convergence(
+                objective_value=error,
+                parameters={'compression_ratio': cr},
+                stage='compression'
+            )
             
             return error
         
@@ -195,6 +287,9 @@ class EngineCalibrator:
         if 'compression' not in self.results or not self.results['compression'].success:
             warnings.warn("压缩段校准未完成或失败, 继续燃烧段校准")
         
+        # 重置收敛跟踪
+        self._reset_convergence_tracking('combustion')
+        
         # 使用多个工况点进行校准
         conditions = [self._point_to_condition(p) for p in self.calibration_points]
         targets = [(p.P_max, p.P_comp) for p in self.calibration_points]
@@ -223,7 +318,20 @@ class EngineCalibrator:
                 except Exception:
                     total_error += 1.0
             
-            return total_error / max(valid_count, 1)
+            avg_error = total_error / max(valid_count, 1)
+            
+            # 记录收敛历史
+            self._record_convergence(
+                objective_value=avg_error,
+                parameters={
+                    'injection_timing': inj_timing,
+                    'diffusion_duration': diff_duration,
+                    'diffusion_shape': diff_shape
+                },
+                stage='combustion'
+            )
+            
+            return avg_error
         
         # 使用差分进化算法进行全局优化
         bounds = [timing_bounds, duration_bounds, shape_bounds]
@@ -298,6 +406,9 @@ class EngineCalibrator:
         print("第三阶段: 传热校准")
         print("=" * 50)
         
+        # 重置收敛跟踪
+        self._reset_convergence_tracking('heat_transfer')
+        
         # 筛选有排温数据的点
         valid_points = [p for p in self.calibration_points if p.T_exhaust > 100]
         
@@ -334,7 +445,16 @@ class EngineCalibrator:
                 except Exception:
                     total_error += 1.0
             
-            return total_error / max(valid_count, 1)
+            avg_error = total_error / max(valid_count, 1)
+            
+            # 记录收敛历史
+            self._record_convergence(
+                objective_value=avg_error,
+                parameters={'C_woschni': C_woschni},
+                stage='heat_transfer'
+            )
+            
+            return avg_error
         
         result = minimize(
             objective,
@@ -373,18 +493,24 @@ class EngineCalibrator:
     
     # ==================== 完整校准流程 ====================
     
-    def run_full_calibration(self, n_points: int = 5) -> Dict[str, CalibrationResult]:
+    def run_full_calibration(self, n_points: int = 5, 
+                              export_results: bool = True) -> Dict[str, CalibrationResult]:
         """
         运行完整的三阶段校准流程
         
         Args:
             n_points: 使用的校准点数量
+            export_results: 是否自动导出收敛历史和验证结果
             
         Returns:
             results: 各阶段校准结果
         """
         print("开始三阶段分步解耦校准...")
         print("=" * 60)
+        
+        # 清空历史记录
+        self.convergence_history = []
+        self.validation_results = []
         
         # 加载数据
         self.load_calibration_data(n_points)
@@ -407,21 +533,173 @@ class EngineCalibrator:
             print(f"[{status}] {stage}: {result.parameters}")
             print(f"    误差: {result.error*100:.2f}%, {result.message}")
         
+        # 生成验证结果
+        self._generate_validation_results()
+        
+        # 导出结果
+        if export_results:
+            self.export_convergence_history()
+            self.export_validation_results()
+            self.export_parameters()
+        
         return self.results
+    
+    def _generate_validation_results(self):
+        """
+        生成验证结果
+        
+        使用校准后的模型对所有校准工况点进行仿真，
+        计算各指标的误差
+        """
+        self.validation_results = []
+        
+        for idx, point in enumerate(self.calibration_points):
+            condition = self._point_to_condition(point)
+            
+            try:
+                self.engine.run_cycle(condition)
+                Pmax_sim = self.engine.get_pmax()
+                Pcomp_sim = self.engine.get_pcomp()
+                Texh_sim = self.engine.get_exhaust_temp()
+                
+                result = {
+                    'point_id': idx + 1,
+                    'rpm': point.rpm,
+                    'fuel_command': point.fuel_command,
+                    'p_scav': point.p_scav,
+                    'T_scav': point.T_scav,
+                    'Pmax_exp': point.P_max,
+                    'Pmax_sim': Pmax_sim,
+                    'Pmax_error': (Pmax_sim - point.P_max) / point.P_max * 100,
+                    'Pcomp_exp': point.P_comp,
+                    'Pcomp_sim': Pcomp_sim,
+                    'Pcomp_error': (Pcomp_sim - point.P_comp) / point.P_comp * 100,
+                    'Texh_exp': point.T_exhaust,
+                    'Texh_sim': Texh_sim,
+                    'Texh_error': (Texh_sim - point.T_exhaust) / (point.T_exhaust + 273.15) * 100 if point.T_exhaust > 100 else 0.0
+                }
+                self.validation_results.append(result)
+                
+            except Exception as e:
+                print(f"警告: 工况点 {idx+1} 仿真失败: {e}")
+                continue
+    
+    def export_convergence_history(self, filepath: str = None) -> str:
+        """
+        导出收敛历史到CSV
+        
+        Args:
+            filepath: 输出文件路径，默认为 data/calibration_convergence.csv
+            
+        Returns:
+            filepath: 保存的文件路径
+        """
+        if filepath is None:
+            if PATH_CONFIG is not None:
+                filepath = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_convergence.csv')
+            else:
+                filepath = 'data/calibration_convergence.csv'
+        
+        # 确保目录存在
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        # 转换为DataFrame
+        records = []
+        for rec in self.convergence_history:
+            row = {
+                'iteration': rec.iteration,
+                'objective_value': rec.objective_value,
+                'best_value': rec.best_value,
+                'stage': rec.stage
+            }
+            # 添加参数列
+            for k, v in rec.parameters.items():
+                row[f'param_{k}'] = v
+            records.append(row)
+        
+        df = pd.DataFrame(records)
+        df.to_csv(filepath, index=False)
+        
+        print(f"收敛历史已导出: {filepath}")
+        return filepath
+    
+    def export_validation_results(self, filepath: str = None) -> str:
+        """
+        导出验证结果到CSV
+        
+        Args:
+            filepath: 输出文件路径，默认为 data/calibration_validation.csv
+            
+        Returns:
+            filepath: 保存的文件路径
+        """
+        if filepath is None:
+            if PATH_CONFIG is not None:
+                filepath = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_validation.csv')
+            else:
+                filepath = 'data/calibration_validation.csv'
+        
+        # 确保目录存在
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        df = pd.DataFrame(self.validation_results)
+        df.to_csv(filepath, index=False)
+        
+        print(f"验证结果已导出: {filepath}")
+        return filepath
     
     def get_calibrated_engine(self) -> MarineEngine0D:
         """返回校准后的发动机模型"""
         return self.engine
     
     def export_parameters(self, filepath: str = None) -> Dict:
-        """导出校准参数"""
+        """
+        导出校准参数到JSON
+        
+        Args:
+            filepath: 输出文件路径，默认为 data/calibrated_params.json
+            
+        Returns:
+            params: 校准参数字典
+        """
         params = {}
         for stage, result in self.results.items():
             params.update(result.parameters)
         
-        if filepath:
-            import json
-            with open(filepath, 'w') as f:
-                json.dump(params, f, indent=2)
+        if filepath is None:
+            if PATH_CONFIG is not None:
+                filepath = os.path.join(PATH_CONFIG.DATA_DIR, 'calibrated_params.json')
+            else:
+                filepath = 'data/calibrated_params.json'
         
+        # 确保目录存在
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(params, f, indent=2, ensure_ascii=False)
+        
+        print(f"校准参数已导出: {filepath}")
         return params
+    
+    def get_convergence_summary(self) -> Dict:
+        """
+        获取收敛历史摘要
+        
+        Returns:
+            summary: 包含各阶段收敛统计的字典
+        """
+        summary = {}
+        
+        for stage in ['compression', 'combustion', 'heat_transfer']:
+            stage_records = [r for r in self.convergence_history if r.stage == stage]
+            
+            if stage_records:
+                summary[stage] = {
+                    'total_iterations': len(stage_records),
+                    'initial_objective': stage_records[0].objective_value,
+                    'final_objective': stage_records[-1].objective_value,
+                    'best_objective': min(r.objective_value for r in stage_records),
+                    'convergence_ratio': stage_records[-1].best_value / stage_records[0].objective_value if stage_records[0].objective_value > 0 else 0
+                }
+        
+        return summary
