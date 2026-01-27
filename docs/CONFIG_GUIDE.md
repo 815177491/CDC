@@ -3,6 +3,7 @@
 ## 概述
 
 本项目使用统一的全局配置文件 `config/global_config.py` 管理所有参数，包括：
+
 - 绘图参数配置
 - 数据处理参数
 - 发动机模型参数
@@ -12,18 +13,20 @@
 ## 绘图标准
 
 ### 字体设置
-| 元素 | 字体 | 字号 |
-|------|------|------|
-| 中文 | 宋体 (SimSun) | - |
-| 英文 | Times New Roman | - |
-| 刻度标签 | - | 14pt |
-| 轴标签 | - | 14pt |
-| 图例 | - | 12pt |
-| 图中文字 | - | 12pt |
-| 标题 | - | 12pt |
-| 总标题 | - | 14pt |
+
+| 元素     | 字体            | 字号 |
+| -------- | --------------- | ---- |
+| 中文     | 宋体 (SimSun)   | -    |
+| 英文     | Times New Roman | -    |
+| 刻度标签 | -               | 14pt |
+| 轴标签   | -               | 14pt |
+| 图例     | -               | 12pt |
+| 图中文字 | -               | 12pt |
+| 标题     | -               | 12pt |
+| 总标题   | -               | 14pt |
 
 ### 输出格式
+
 - 格式：**SVG**
 - 文字：可编辑文字（不转换为路径）
 - 分辨率：150 DPI
@@ -31,6 +34,7 @@
 ## 使用方法
 
 ### 1. 导入配置
+
 ```python
 from config import (
     PLOT_CONFIG,          # 绘图配置
@@ -46,12 +50,14 @@ from config import (
 ```
 
 ### 2. 设置matplotlib样式
+
 ```python
 # 在绑定模块开头调用
 setup_matplotlib_style()
 ```
 
 ### 3. 使用配色方案
+
 ```python
 import matplotlib.pyplot as plt
 
@@ -62,6 +68,7 @@ plt.fill(x, y, color=COLORS['danger'])       # 红色
 ```
 
 ### 4. 保存图形
+
 ```python
 # 方法1: 使用save_figure函数
 save_figure(fig, 'preprocessing', 'my_plot.svg')
@@ -87,6 +94,7 @@ visualization_output/
 ## 配置类说明
 
 ### PlotConfig (绘图配置)
+
 ```python
 PLOT_CONFIG.FONT_SIZE_TICK      # 刻度标签字号 (14)
 PLOT_CONFIG.FONT_SIZE_LABEL     # 轴标签字号 (14)
@@ -98,6 +106,7 @@ PLOT_CONFIG.OUTPUT_FORMAT       # 输出格式 ('svg')
 ```
 
 ### DataConfig (数据处理配置)
+
 ```python
 DATA_CONFIG.STEADY_STATE_WINDOW         # 稳态检测窗口大小 (60)
 DATA_CONFIG.STEADY_STATE_RPM_TOLERANCE  # RPM容差 (1.0)
@@ -105,6 +114,7 @@ DATA_CONFIG.OUTLIER_Z_THRESHOLD         # Z-score异常值阈值 (3.0)
 ```
 
 ### EngineConfig (发动机配置)
+
 ```python
 ENGINE_CONFIG.bore               # 气缸直径 [m]
 ENGINE_CONFIG.stroke             # 活塞行程 [m]
@@ -113,6 +123,7 @@ ENGINE_CONFIG.gamma              # 比热比
 ```
 
 ### TrainingConfig (训练配置)
+
 ```python
 TRAINING_CONFIG.LEARNING_RATE   # 学习率
 TRAINING_CONFIG.BATCH_SIZE      # 批次大小
@@ -147,6 +158,7 @@ COLORS = {
 5. **必须** 使用 SVG 格式输出
 
 ### 模板代码
+
 ```python
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
@@ -171,24 +183,24 @@ def plot_my_figure(data, output_dir=None):
     label_size = PLOT_CONFIG.FONT_SIZE_LABEL
     legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
     title_size = PLOT_CONFIG.FONT_SIZE_TITLE
-    
+
     # 创建图形
     fig, ax = plt.subplots(figsize=PLOT_CONFIG.FIGURE_SIZE_SINGLE)
-    
+
     # 绑定
     ax.plot(data['x'], data['y'], color=COLORS['primary'], linewidth=1.5)
-    
+
     # 设置标签
     ax.set_xlabel('X轴标签', fontsize=label_size)
     ax.set_ylabel('Y轴标签', fontsize=label_size)
     ax.set_title('图形标题', fontsize=title_size)
     ax.legend(fontsize=legend_size)
     ax.tick_params(labelsize=tick_size)
-    
+
     # 保存图形
     save_figure(fig, 'preprocessing', 'my_figure.svg')
     plt.close()
-    
+
     return fig
 ```
 
