@@ -50,13 +50,13 @@ CDC/
 
 ### 1.2 新文件创建规则
 
-| 文件类型 | 存放位置 | 命名规则 |
-|---------|---------|---------|
-| 可视化绑定函数 | `visualization/` | `*_plots.py` |
-| **生成的图片** | `visualization_output/<category>/` | `*.svg` |
-| 配置参数 | `config/global_config.py` | 添加到对应的Config类 |
-| 数据文件 | `data/` | 描述性名称 |
-| 实验脚本 | `experiments/` | `*_experiments.py` |
+| 文件类型       | 存放位置                           | 命名规则             |
+| -------------- | ---------------------------------- | -------------------- |
+| 可视化绑定函数 | `visualization/`                   | `*_plots.py`         |
+| **生成的图片** | `visualization_output/<category>/` | `*.svg`              |
+| 配置参数       | `config/global_config.py`          | 添加到对应的Config类 |
+| 数据文件       | `data/`                            | 描述性名称           |
+| 实验脚本       | `experiments/`                     | `*_experiments.py`   |
 
 ---
 
@@ -64,24 +64,24 @@ CDC/
 
 ### 2.1 输出格式要求
 
-| 项目 | 规范 |
-|-----|------|
-| **格式** | SVG（矢量图） |
-| **文字** | 可编辑文字，不转换为路径 |
-| **中文字体** | 宋体 (SimSun) |
-| **英文字体** | Times New Roman |
+| 项目         | 规范                               |
+| ------------ | ---------------------------------- |
+| **格式**     | SVG（矢量图）                      |
+| **文字**     | 可编辑文字，不转换为路径           |
+| **中文字体** | 宋体 (SimSun)                      |
+| **英文字体** | Times New Roman                    |
 | **保存位置** | `visualization_output/<category>/` |
 
 ### 2.2 字号规范
 
-| 元素 | 字号 | 配置变量 |
-|-----|------|---------|
-| 刻度标签 | **14pt** | `PLOT_CONFIG.FONT_SIZE_TICK` |
-| 轴标签 | **14pt** | `PLOT_CONFIG.FONT_SIZE_LABEL` |
-| 图例 | **12pt** | `PLOT_CONFIG.FONT_SIZE_LEGEND` |
-| 图中文字 | **12pt** | `PLOT_CONFIG.FONT_SIZE_TEXT` |
-| 子图标题 | **12pt** | `PLOT_CONFIG.FONT_SIZE_TITLE` |
-| 总标题 | **14pt** | `PLOT_CONFIG.FONT_SIZE_SUPTITLE` |
+| 元素     | 字号     | 配置变量                         |
+| -------- | -------- | -------------------------------- |
+| 刻度标签 | **14pt** | `PLOT_CONFIG.FONT_SIZE_TICK`     |
+| 轴标签   | **14pt** | `PLOT_CONFIG.FONT_SIZE_LABEL`    |
+| 图例     | **12pt** | `PLOT_CONFIG.FONT_SIZE_LEGEND`   |
+| 图中文字 | **12pt** | `PLOT_CONFIG.FONT_SIZE_TEXT`     |
+| 子图标题 | **12pt** | `PLOT_CONFIG.FONT_SIZE_TITLE`    |
+| 总标题   | **14pt** | `PLOT_CONFIG.FONT_SIZE_SUPTITLE` |
 
 ### 2.3 配色规范
 
@@ -122,7 +122,7 @@ def plot_xxx(data):
     label_size = PLOT_CONFIG.FONT_SIZE_LABEL
     legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
     title_size = PLOT_CONFIG.FONT_SIZE_TITLE
-    
+
     # 绑定逻辑...
     ax.set_xlabel('X轴标签', fontsize=label_size)
     ax.set_ylabel('Y轴标签', fontsize=label_size)
@@ -136,13 +136,13 @@ def plot_xxx(data):
 
 ### 2.5 图形类别（category参数）
 
-| 类别 | 说明 | 输出目录 |
-|-----|------|---------|
+| 类别              | 说明       | 输出目录                              |
+| ----------------- | ---------- | ------------------------------------- |
 | `'preprocessing'` | 数据预处理 | `visualization_output/preprocessing/` |
-| `'calibration'` | 标定过程 | `visualization_output/calibration/` |
-| `'training'` | 训练过程 | `visualization_output/training/` |
-| `'experiments'` | 实验结果 | `visualization_output/experiments/` |
-| `'modeling'` | 模型相关 | `visualization_output/modeling/` |
+| `'calibration'`   | 标定过程   | `visualization_output/calibration/`   |
+| `'training'`      | 训练过程   | `visualization_output/training/`      |
+| `'experiments'`   | 实验结果   | `visualization_output/experiments/`   |
+| `'modeling'`      | 模型相关   | `visualization_output/modeling/`      |
 
 ---
 
@@ -154,13 +154,13 @@ def plot_xxx(data):
 
 ### 3.2 配置类说明
 
-| 配置类 | 用途 | 使用方式 |
-|-------|------|---------|
-| `PlotConfig` | 绑定参数 | `PLOT_CONFIG.xxx` |
-| `PathConfig` | 路径配置 | `PATH_CONFIG.xxx` |
-| `DataConfig` | 数据处理参数 | `DATA_CONFIG.xxx` |
-| `EngineConfig` | 发动机物理参数 | `ENGINE_CONFIG.xxx` |
-| `TrainingConfig` | 训练参数 | `TRAINING_CONFIG.xxx` |
+| 配置类           | 用途           | 使用方式              |
+| ---------------- | -------------- | --------------------- |
+| `PlotConfig`     | 绑定参数       | `PLOT_CONFIG.xxx`     |
+| `PathConfig`     | 路径配置       | `PATH_CONFIG.xxx`     |
+| `DataConfig`     | 数据处理参数   | `DATA_CONFIG.xxx`     |
+| `EngineConfig`   | 发动机物理参数 | `ENGINE_CONFIG.xxx`   |
+| `TrainingConfig` | 训练参数       | `TRAINING_CONFIG.xxx` |
 
 ### 3.3 添加新参数
 
@@ -172,7 +172,7 @@ class DataConfig:
     """数据处理参数配置"""
     # 现有参数...
     STEADY_STATE_WINDOW: int = 60
-    
+
     # ✅ 添加新参数
     NEW_PARAMETER: float = 1.0  # 参数说明
 ```
@@ -181,13 +181,13 @@ class DataConfig:
 
 ❌ **禁止在代码中硬编码以下内容**：
 
-| 禁止硬编码 | 正确做法 |
-|-----------|---------|
-| `fontsize=14` | `fontsize=PLOT_CONFIG.FONT_SIZE_LABEL` |
-| `color='#2E86AB'` | `color=COLORS['primary']` |
-| `'visualization_output/'` | `PATH_CONFIG.VIS_PREPROCESSING_DIR` |
-| `gamma=1.35` | `ENGINE_CONFIG.gamma` |
-| `lr=0.001` | `TRAINING_CONFIG.LEARNING_RATE` |
+| 禁止硬编码                | 正确做法                               |
+| ------------------------- | -------------------------------------- |
+| `fontsize=14`             | `fontsize=PLOT_CONFIG.FONT_SIZE_LABEL` |
+| `color='#2E86AB'`         | `color=COLORS['primary']`              |
+| `'visualization_output/'` | `PATH_CONFIG.VIS_PREPROCESSING_DIR`    |
+| `gamma=1.35`              | `ENGINE_CONFIG.gamma`                  |
+| `lr=0.001`                | `TRAINING_CONFIG.LEARNING_RATE`        |
 
 ---
 
@@ -254,17 +254,17 @@ def plot_example(
 ) -> plt.Figure:
     """
     绑定示例函数
-    
+
     Args:
         df: 输入数据DataFrame，必须包含'rpm'和'P_max'列
         output_dir: 输出目录，默认使用全局配置
-        
+
     Returns:
         matplotlib Figure对象
-        
+
     Raises:
         ValueError: 当输入数据为空时
-        
+
     Example:
         >>> fig = plot_example(df)
     """
@@ -277,31 +277,31 @@ def plot_example(
 
 ### 5.1 文件命名
 
-| 类型 | 命名规则 | 示例 |
-|-----|---------|------|
-| Python模块 | 小写+下划线 | `data_loader.py` |
-| 可视化模块 | `*_plots.py` | `preprocessing_plots.py` |
-| 实验脚本 | `*_experiments.py` | `comparison_experiments.py` |
-| 配置文件 | `*_config.py` | `global_config.py` |
+| 类型       | 命名规则           | 示例                        |
+| ---------- | ------------------ | --------------------------- |
+| Python模块 | 小写+下划线        | `data_loader.py`            |
+| 可视化模块 | `*_plots.py`       | `preprocessing_plots.py`    |
+| 实验脚本   | `*_experiments.py` | `comparison_experiments.py` |
+| 配置文件   | `*_config.py`      | `global_config.py`          |
 
 ### 5.2 函数命名
 
-| 类型 | 命名规则 | 示例 |
-|-----|---------|------|
-| 绑定函数 | `plot_*` | `plot_steady_state_selection()` |
-| 数据处理 | `process_*`, `load_*`, `save_*` | `load_data()` |
-| 计算函数 | `calculate_*`, `compute_*` | `calculate_metrics()` |
-| 验证函数 | `validate_*`, `check_*` | `validate_input()` |
+| 类型     | 命名规则                        | 示例                            |
+| -------- | ------------------------------- | ------------------------------- |
+| 绑定函数 | `plot_*`                        | `plot_steady_state_selection()` |
+| 数据处理 | `process_*`, `load_*`, `save_*` | `load_data()`                   |
+| 计算函数 | `calculate_*`, `compute_*`      | `calculate_metrics()`           |
+| 验证函数 | `validate_*`, `check_*`         | `validate_input()`              |
 
 ### 5.3 变量命名
 
-| 类型 | 命名规则 | 示例 |
-|-----|---------|------|
-| 常量 | 全大写+下划线 | `MAX_ITERATIONS` |
-| 配置变量 | 全大写+下划线 | `PLOT_CONFIG` |
-| DataFrame | `df_*` | `df_clean`, `df_raw` |
-| 图形对象 | `fig`, `ax`, `axes` | `fig, ax = plt.subplots()` |
-| 字号变量 | `*_size` | `tick_size`, `label_size` |
+| 类型      | 命名规则            | 示例                       |
+| --------- | ------------------- | -------------------------- |
+| 常量      | 全大写+下划线       | `MAX_ITERATIONS`           |
+| 配置变量  | 全大写+下划线       | `PLOT_CONFIG`              |
+| DataFrame | `df_*`              | `df_clean`, `df_raw`       |
+| 图形对象  | `fig`, `ax`, `axes` | `fig, ax = plt.subplots()` |
+| 字号变量  | `*_size`            | `tick_size`, `label_size`  |
 
 ---
 
@@ -350,33 +350,33 @@ def plot_xxx(
 ) -> plt.Figure:
     """
     绑定函数说明
-    
+
     Args:
         df: 输入数据
         output_dir: 输出目录（可选）
-        
+
     Returns:
         Figure对象
     """
     print("\n[X/X] 生成XXX可视化...")
-    
+
     # 使用全局配置
     colors = COLORS
     tick_size = PLOT_CONFIG.FONT_SIZE_TICK
     label_size = PLOT_CONFIG.FONT_SIZE_LABEL
     legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
     title_size = PLOT_CONFIG.FONT_SIZE_TITLE
-    
+
     # 创建图形
     fig = plt.figure(figsize=PLOT_CONFIG.FIGURE_SIZE_LARGE)
     gs = GridSpec(2, 2, figure=fig, hspace=0.3, wspace=0.3)
-    
+
     # ========== (a) 子图1 ==========
     ax1 = fig.add_subplot(gs[0, 0])
-    
+
     # 绑定逻辑...
     ax1.plot(df['x'], df['y'], color=colors['primary'], linewidth=1.5)
-    
+
     # 设置标签（使用配置变量）
     ax1.set_xlabel('X轴标签', fontsize=label_size)
     ax1.set_ylabel('Y轴标签', fontsize=label_size)
@@ -384,14 +384,14 @@ def plot_xxx(
     ax1.legend(fontsize=legend_size)
     ax1.tick_params(labelsize=tick_size)
     ax1.grid(True, alpha=0.3)
-    
+
     # 总标题
     plt.suptitle('图形总标题', fontsize=PLOT_CONFIG.FONT_SIZE_SUPTITLE, fontweight='bold')
-    
+
     # 保存图形
     save_figure(fig, 'category', 'filename.svg')
     plt.close()
-    
+
     return fig
 
 
@@ -429,19 +429,19 @@ def main():
     print("=" * 70)
     print("XXX处理流程")
     print("=" * 70)
-    
+
     # 使用全局配置的路径
     output_dir = PATH_CONFIG.VIS_PREPROCESSING_DIR
     print(f"输出目录: {os.path.abspath(output_dir)}")
-    
+
     try:
         # 处理逻辑...
         plot_xxx()
-        
+
         print("\n" + "=" * 70)
         print("✅ 处理完成!")
         print("=" * 70)
-        
+
     except Exception as e:
         print(f"\n[ERROR] 处理失败: {e}")
         import traceback
@@ -472,6 +472,6 @@ if __name__ == '__main__':
 
 ## 更新日志
 
-| 日期 | 版本 | 更新内容 |
-|-----|------|---------|
-| 2026-01-28 | 1.0 | 初始版本，建立代码规范 |
+| 日期       | 版本 | 更新内容               |
+| ---------- | ---- | ---------------------- |
+| 2026-01-28 | 1.0  | 初始版本，建立代码规范 |
