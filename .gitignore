@@ -58,3 +58,6 @@ calibration_data.csv
 # checkpoints
 *.pt
 *.svg
+
+# Documentation (local only, not uploaded)
+docs/
