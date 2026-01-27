@@ -57,3 +57,4 @@ calibration_data.csv
 
 # checkpoints
 *.pt
+*.svg

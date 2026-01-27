@@ -17,6 +17,9 @@ Date: 2026-01-24
 
 import os
 
+# 导入全局配置
+from config import PATH_CONFIG, setup_matplotlib_style
+
 # 导入数据加载模块
 from calibration.data_loader import VisualizationDataLoader
 
@@ -28,19 +31,20 @@ from visualization.preprocessing_plots import (
     plot_normalization_correlation,
 )
 
-# 输出目录
-OUTPUT_DIR = 'visualization_output'
-
 
 def main():
     """主函数 - 生成全部数据预处理可视化"""
     print("=" * 70)
     print("数据清洗与特征提取可视化")
     print("=" * 70)
-    print(f"输出目录: {os.path.abspath(OUTPUT_DIR)}")
+    
+    # 使用全局配置的输出目录
+    output_dir = PATH_CONFIG.VIS_PREPROCESSING_DIR
+    print(f"输出目录: {os.path.abspath(output_dir)}")
     
     # 使用新的数据加载器
-    loader = VisualizationDataLoader('data/calibration_data.csv')
+    data_path = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_data.csv')
+    loader = VisualizationDataLoader(data_path)
     
     try:
         # 读取数据段（自动选择第1段）
@@ -49,13 +53,13 @@ def main():
         df = loader.load_segment(use_full_data=False)
         
         # 按优先级顺序生成所有可视化
-        plot_steady_state_selection(df, OUTPUT_DIR)          # 1. 稳态筛选
-        plot_representative_points(df, OUTPUT_DIR)            # 2. 工况点提取
-        plot_data_cleaning(df, OUTPUT_DIR)                    # 3. 异常值剔除
+        plot_steady_state_selection(df)          # 1. 稳态筛选
+        plot_representative_points(df)            # 2. 工况点提取
+        plot_data_cleaning(df)                    # 3. 异常值剔除
         
         # 4. 标准化处理（需要清洗后的数据）
         df_clean = loader.apply_outlier_filter(df)
-        plot_normalization_correlation(df, df_clean, OUTPUT_DIR)
+        plot_normalization_correlation(df, df_clean)
         
         print()
         print("=" * 70)
@@ -73,7 +77,7 @@ def main():
         
         print(f"\n生成的SVG矢量图 ({len(svg_files)} 个):")
         for fname in svg_files:
-            path = os.path.join(OUTPUT_DIR, fname)
+            path = os.path.join(output_dir, fname)
             if os.path.exists(path):
                 size = os.path.getsize(path) / 1024
                 print(f"  {fname:<40} {size:>8.1f} KB")

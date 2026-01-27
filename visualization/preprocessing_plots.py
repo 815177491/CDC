@@ -28,44 +28,25 @@ from sklearn.decomposition import PCA
 import warnings
 warnings.filterwarnings('ignore')
 
-# 中文字体设置 - 宋体; 英文字体设置 - Times New Roman
-# 注：matplotlib会使用sans-serif列表的第一个字体作为默认值
-plt.rcParams['font.sans-serif'] = ['SimSun', 'DejaVu Sans']      # 中文采用宋体
-plt.rcParams['font.serif'] = ['Times New Roman', 'SimSun']        # 衬线字体配置
-plt.rcParams['font.monospace'] = ['Courier New']                  # 等宽字体
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['figure.dpi'] = 100
-plt.rcParams['savefig.dpi'] = 150
-# SVG文本保留为可编辑文字（不转换为路径）
-plt.rcParams['svg.fonttype'] = 'none'
+# 导入全局配置
+from config import (
+    PLOT_CONFIG, 
+    COLORS, 
+    DATA_CONFIG,
+    PATH_CONFIG,
+    setup_matplotlib_style,
+    save_figure,
+    get_output_path
+)
 
-# 确保系统能找到宋体和Times New Roman字体
-import matplotlib.font_manager as fm
-try:
-    simsun_path = 'C:\\Windows\\Fonts\\simsun.ttc'
-    times_path = 'C:\\Windows\\Fonts\\times.ttf'
-    if os.path.exists(simsun_path):
-        fm.fontManager.addfont(simsun_path)
-    if os.path.exists(times_path):
-        fm.fontManager.addfont(times_path)
-except:
-    pass
-
-# 配色方案
-COLORS = {
-    'primary': '#2E86AB',      # 蓝色
-    'secondary': '#A23B72',    # 紫红色
-    'success': '#28A745',      # 绿色
-    'warning': '#FFC107',      # 黄色
-    'danger': '#DC3545',       # 红色
-    'info': '#17A2B8',         # 青色
-    'dark': '#343A40',         # 深灰
-    'light': '#F8F9FA',        # 浅灰
-}
+# 应用全局matplotlib样式
+setup_matplotlib_style()
 
 
-def set_tick_fontsize(ax, fontsize=14):
+def set_tick_fontsize(ax, fontsize=None):
     """设置坐标轴刻度标签的字体大小"""
+    if fontsize is None:
+        fontsize = PLOT_CONFIG.FONT_SIZE_TICK
     ax.tick_params(axis='both', which='major', labelsize=fontsize)
     for label in ax.get_xticklabels():
         label.set_fontsize(fontsize)
@@ -73,16 +54,26 @@ def set_tick_fontsize(ax, fontsize=14):
         label.set_fontsize(fontsize)
 
 
-def plot_steady_state_selection(df: pd.DataFrame, output_dir: str = 'visualization_output') -> plt.Figure:
+def plot_steady_state_selection(df: pd.DataFrame, output_dir: str = None) -> plt.Figure:
     """可视化1: 稳态工况的智能筛选"""
     print("\n[1/4] 生成稳态工况智能筛选可视化...")
     
+    # 使用全局配置
     colors = COLORS
+    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
+    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
+    legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
+    title_size = PLOT_CONFIG.FONT_SIZE_TITLE
+    
+    # 输出目录默认使用全局配置
+    if output_dir is None:
+        output_dir = PATH_CONFIG.VIS_PREPROCESSING_DIR
+    
     df = df.copy()
     
-    # 参考data_loader.py的extract_steady_state_points
-    window_size = 60
-    rpm_tolerance = 1.0
+    # 使用全局数据配置参数
+    window_size = DATA_CONFIG.STEADY_STATE_WINDOW
+    rpm_tolerance = DATA_CONFIG.STEADY_STATE_RPM_TOLERANCE
     
     # 计算RPM滚动标准差
     df['rpm_std'] = df['rpm'].rolling(window=window_size, center=True).std()
@@ -136,15 +127,15 @@ def plot_steady_state_selection(df: pd.DataFrame, output_dir: str = 'visualizati
                    alpha=0.2, color=colors['success'],
                    label='稳态段' if idx == 0 else '')
     
-    ax1.set_xlabel('时间 (采样点)', fontsize=14)
-    ax1.set_ylabel('RPM', fontsize=14, color=colors['primary'])
-    ax1_twin.set_ylabel('RPM标准差', fontsize=14, color=colors['danger'])
-    ax1.set_title('(a) 基于RPM变化率的稳态段识别', fontsize=12, fontweight='bold')
+    ax1.set_xlabel('时间 (采样点)', fontsize=label_size)
+    ax1.set_ylabel('RPM', fontsize=label_size, color=colors['primary'])
+    ax1_twin.set_ylabel('RPM标准差', fontsize=label_size, color=colors['danger'])
+    ax1.set_title('(a) 基于RPM变化率的稳态段识别', fontsize=title_size, fontweight='bold')
     
     # 合并图例
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax1_twin.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=12)
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=legend_size)
     ax1.grid(True, alpha=0.3)
     
     # ========== (b) 稳态段统计 ==========
@@ -164,9 +155,9 @@ def plot_steady_state_selection(df: pd.DataFrame, output_dir: str = 'visualizati
                 f'{dur}s ({dur/total_time*100:.1f}%)',
                 va='center', fontsize=10, fontweight='bold')
     
-    ax2.set_xlabel('时长 (s)', fontsize=14)
+    ax2.set_xlabel('时长 (s)', fontsize=label_size)
     ax2.set_title(f'(b) 稳态段统计 (共{len(steady_regions)}段)',
-                 fontsize=11, fontweight='bold')
+                 fontsize=title_size, fontweight='bold')
     ax2.grid(True, alpha=0.3, axis='x')
     ax2.set_xlim(0, total_time * 1.25)
     
@@ -202,10 +193,10 @@ def plot_steady_state_selection(df: pd.DataFrame, output_dir: str = 'visualizati
         ax3.axhline(50, color=colors['warning'], linestyle='--',
                    linewidth=1.5, alpha=0.7, label='良好 (≥50分)')
     
-    ax3.set_xlabel('稳态段编号', fontsize=14)
-    ax3.set_ylabel('质量评分', fontsize=14)
-    ax3.set_title('(c) 稳态段质量评估', fontsize=11, fontweight='bold')
-    ax3.legend(fontsize=12)
+    ax3.set_xlabel('稳态段编号', fontsize=label_size)
+    ax3.set_ylabel('质量评分', fontsize=label_size)
+    ax3.set_title('(c) 稳态段质量评估', fontsize=title_size, fontweight='bold')
+    ax3.legend(fontsize=legend_size)
     ax3.grid(True, alpha=0.3, axis='y')
     ax3.set_ylim([0, 110])
     
@@ -223,10 +214,10 @@ def plot_steady_state_selection(df: pd.DataFrame, output_dir: str = 'visualizati
         ax4.scatter(transient_df['rpm'], transient_df['P_max'],
                    s=10, alpha=0.2, color=colors['dark'], label='瞬态点')
     
-    ax4.set_xlabel('RPM', fontsize=14)
-    ax4.set_ylabel('P_max (bar)', fontsize=14)
-    ax4.set_title('(d) 稳态/瞬态工况点分布', fontsize=11, fontweight='bold')
-    ax4.legend(fontsize=12)
+    ax4.set_xlabel('RPM', fontsize=label_size)
+    ax4.set_ylabel('P_max (bar)', fontsize=label_size)
+    ax4.set_title('(d) 稳态/瞬态工况点分布', fontsize=title_size, fontweight='bold')
+    ax4.legend(fontsize=legend_size)
     ax4.grid(True, alpha=0.3)
     
     # ========== (e) 持续时间分布 ==========
@@ -244,37 +235,45 @@ def plot_steady_state_selection(df: pd.DataFrame, output_dir: str = 'visualizati
         ax5.axvline(50, color=colors['warning'], linestyle='--',
                    linewidth=2, label='最小阈值: 50s')
     
-    ax5.set_xlabel('持续时间 (s)', fontsize=14)
-    ax5.set_ylabel('稳态段数量', fontsize=14)
-    ax5.set_title('(e) 稳态持续时间分布', fontsize=11, fontweight='bold')
-    ax5.legend(fontsize=12)
+    ax5.set_xlabel('持续时间 (s)', fontsize=label_size)
+    ax5.set_ylabel('稳态段数量', fontsize=label_size)
+    ax5.set_title('(e) 稳态持续时间分布', fontsize=title_size, fontweight='bold')
+    ax5.legend(fontsize=legend_size)
     ax5.grid(True, alpha=0.3)
     
-    plt.suptitle('稳态工况的智能筛选流程', fontsize=14, fontweight='bold', y=0.995)
+    plt.suptitle('稳态工况的智能筛选流程', fontsize=PLOT_CONFIG.FONT_SIZE_SUPTITLE, fontweight='bold', y=0.995)
     
     # 设置所有刻度标签字体大小
     for ax in [ax1, ax1_twin, ax2, ax3, ax4, ax5]:
-        set_tick_fontsize(ax, fontsize=14)
+        set_tick_fontsize(ax, fontsize=tick_size)
     
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, 'steady_state_selection.svg')
-    plt.savefig(save_path, bbox_inches='tight', facecolor='white', format='svg')
+    # 使用全局save_figure函数保存
+    save_path = save_figure(fig, 'preprocessing', 'steady_state_selection.svg')
     plt.close()
-    print(f"  ✓ 已保存: {save_path}")
     
     return fig
 
 
-def plot_representative_points(df: pd.DataFrame, output_dir: str = 'visualization_output') -> plt.Figure:
+def plot_representative_points(df: pd.DataFrame, output_dir: str = None) -> plt.Figure:
     """可视化2: 代表性工况点的提取"""
     print("\n[2/4] 生成代表性工况点提取可视化...")
     
+    # 使用全局配置
     colors = COLORS
+    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
+    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
+    legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
+    title_size = PLOT_CONFIG.FONT_SIZE_TITLE
+    
+    # 输出目录默认使用全局配置
+    if output_dir is None:
+        output_dir = PATH_CONFIG.VIS_PREPROCESSING_DIR
+    
     df = df.copy()
     
-    # 提取稳态点 - 参考extract_steady_state_points
-    window_size = 60
-    rpm_tolerance = 1.0
+    # 提取稳态点 - 使用全局数据配置参数
+    window_size = DATA_CONFIG.STEADY_STATE_WINDOW
+    rpm_tolerance = DATA_CONFIG.STEADY_STATE_RPM_TOLERANCE
     n_points = 10
     
     df['rpm_std'] = df['rpm'].rolling(window=window_size, center=True).std()
@@ -320,12 +319,12 @@ def plot_representative_points(df: pd.DataFrame, output_dir: str = 'visualizatio
                     fontsize=8, fontweight='bold', color='darkred')
     
     cbar = plt.colorbar(scatter, ax=ax1)
-    cbar.set_label('T_exh (K)', fontsize=12)
+    cbar.set_label('T_exh (K)', fontsize=legend_size)
     
-    ax1.set_xlabel('RPM', fontsize=14)
-    ax1.set_ylabel('P_max (bar)', fontsize=14)
-    ax1.set_title('(a) 全工况图谱与代表点', fontsize=11, fontweight='bold')
-    ax1.legend(fontsize=12)
+    ax1.set_xlabel('RPM', fontsize=label_size)
+    ax1.set_ylabel('P_max (bar)', fontsize=label_size)
+    ax1.set_title('(a) 全工况图谱与代表点', fontsize=title_size, fontweight='bold')
+    ax1.legend(fontsize=legend_size)
     ax1.grid(True, alpha=0.3)
     
     # ========== (b) 负荷区间分箱 ==========
@@ -353,10 +352,10 @@ def plot_representative_points(df: pd.DataFrame, output_dir: str = 'visualizatio
                c='red', edgecolors='black', linewidths=2,
                label='抽样点', zorder=10)
     
-    ax2.set_xlabel('RPM', fontsize=14)
-    ax2.set_ylabel('P_max (bar)', fontsize=14)
-    ax2.set_title(f'(b) 分层抽样 ({n_points}个分箱)', fontsize=11, fontweight='bold')
-    ax2.legend(fontsize=12)
+    ax2.set_xlabel('RPM', fontsize=label_size)
+    ax2.set_ylabel('P_max (bar)', fontsize=label_size)
+    ax2.set_title(f'(b) 分层抽样 ({n_points}个分箱)', fontsize=title_size, fontweight='bold')
+    ax2.legend(fontsize=legend_size)
     ax2.grid(True, alpha=0.3)
     
     # ========== (c) 代表性评分 ==========
@@ -389,8 +388,8 @@ def plot_representative_points(df: pd.DataFrame, output_dir: str = 'visualizatio
                 f'{score:.0f}',
                 va='center', fontsize=9, fontweight='bold')
     
-    ax3.set_xlabel('代表性评分', fontsize=14)
-    ax3.set_title('(c) 代表点质量评估', fontsize=11, fontweight='bold')
+    ax3.set_xlabel('代表性评分', fontsize=label_size)
+    ax3.set_title('(c) 代表点质量评估', fontsize=title_size, fontweight='bold')
     ax3.grid(True, alpha=0.3, axis='x')
     ax3.set_xlim([0, 110])
     
@@ -421,10 +420,10 @@ def plot_representative_points(df: pd.DataFrame, output_dir: str = 'visualizatio
             ax4.fill(angles, values, alpha=0.15)
         
         ax4.set_xticks(angles[:-1])
-        ax4.set_xticklabels(available_params, fontsize=14)
+        ax4.set_xticklabels(available_params, fontsize=tick_size)
         ax4.set_ylim([0, 1])
-        ax4.set_title('(d) 代表点参数对比', fontsize=11, fontweight='bold', pad=20)
-        ax4.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0), fontsize=12)
+        ax4.set_title('(d) 代表点参数对比', fontsize=title_size, fontweight='bold', pad=20)
+        ax4.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0), fontsize=legend_size)
         ax4.grid(True)
     
     # ========== (e) 工况覆盖均匀性 ==========
@@ -448,9 +447,9 @@ def plot_representative_points(df: pd.DataFrame, output_dir: str = 'visualizatio
                     xytext=(0, -15), textcoords='offset points',
                     fontsize=8, ha='center', fontweight='bold')
     
-    ax5.set_xlabel('RPM', fontsize=14)
-    ax5.set_ylabel('P_max (bar)', fontsize=14)
-    ax5.set_title('(e) 代表点覆盖区域', fontsize=11, fontweight='bold')
+    ax5.set_xlabel('RPM', fontsize=label_size)
+    ax5.set_ylabel('P_max (bar)', fontsize=label_size)
+    ax5.set_title('(e) 代表点覆盖区域', fontsize=title_size, fontweight='bold')
     ax5.grid(True, alpha=0.3)
     
     # ========== (f) 参数统计表 ==========
@@ -489,28 +488,36 @@ def plot_representative_points(df: pd.DataFrame, output_dir: str = 'visualizatio
             for j in range(5):
                 table[(i, j)].set_facecolor('#f0f0f0')
     
-    ax6.set_title('(f) 代表工况点参数表', fontsize=12, fontweight='bold', pad=20)
+    ax6.set_title('(f) 代表工况点参数表', fontsize=title_size, fontweight='bold', pad=20)
     
-    plt.suptitle('代表性工况点的提取与验证', fontsize=14, fontweight='bold', y=0.995)
+    plt.suptitle('代表性工况点的提取与验证', fontsize=PLOT_CONFIG.FONT_SIZE_SUPTITLE, fontweight='bold', y=0.995)
     
     # 设置所有刻度标签字体大小
     for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
-        set_tick_fontsize(ax, fontsize=14)
+        set_tick_fontsize(ax, fontsize=tick_size)
     
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, 'representative_points.svg')
-    plt.savefig(save_path, bbox_inches='tight', facecolor='white', format='svg')
+    # 使用全局save_figure函数保存
+    save_path = save_figure(fig, 'preprocessing', 'representative_points.svg')
     plt.close()
-    print(f"  ✓ 已保存: {save_path}")
     
     return fig
 
 
-def plot_data_cleaning(df: pd.DataFrame, output_dir: str = 'visualization_output') -> plt.Figure:
+def plot_data_cleaning(df: pd.DataFrame, output_dir: str = None) -> plt.Figure:
     """可视化3: 数据的清洗与异常值剔除"""
     print("\n[3/4] 生成数据清洗与异常值剔除可视化...")
     
+    # 使用全局配置
     colors = COLORS
+    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
+    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
+    legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
+    title_size = PLOT_CONFIG.FONT_SIZE_TITLE
+    
+    # 输出目录默认使用全局配置
+    if output_dir is None:
+        output_dir = PATH_CONFIG.VIS_PREPROCESSING_DIR
+    
     df = df.copy()
     
     # 应用物理边界过滤
@@ -559,10 +566,10 @@ def plot_data_cleaning(df: pd.DataFrame, output_dir: str = 'visualization_output
     ax1.axhline(mean_pmax, color=colors['primary'],
                linestyle=':', linewidth=1.5, alpha=0.5, label=f'清洗后均值 ({mean_pmax:.1f})')
     
-    ax1.set_xlabel('采样点', fontsize=11)
-    ax1.set_ylabel('P_max (bar)', fontsize=11)
-    ax1.set_title('(a) 物理边界异常值检测 - P_max', fontsize=12, fontweight='bold')
-    ax1.legend(loc='upper right', fontsize=9, ncol=2)
+    ax1.set_xlabel('采样点', fontsize=label_size)
+    ax1.set_ylabel('P_max (bar)', fontsize=label_size)
+    ax1.set_title('(a) 物理边界异常值检测 - P_max', fontsize=title_size, fontweight='bold')
+    ax1.legend(loc='upper right', fontsize=legend_size, ncol=2)
     ax1.grid(True, alpha=0.3)
     
     # 统计信息
@@ -585,10 +592,10 @@ def plot_data_cleaning(df: pd.DataFrame, output_dir: str = 'visualization_output
     ax2.axvline(120, color=colors['warning'], linestyle='--',
                linewidth=2, label='上界 (120 rpm)')
     
-    ax2.set_xlabel('RPM', fontsize=14)
-    ax2.set_ylabel('频次', fontsize=14)
-    ax2.set_title(f'(b) RPM异常检测 ({rpm_outliers.sum()}个异常)', fontsize=11, fontweight='bold')
-    ax2.legend(fontsize=12)
+    ax2.set_xlabel('RPM', fontsize=label_size)
+    ax2.set_ylabel('频次', fontsize=label_size)
+    ax2.set_title(f'(b) RPM异常检测 ({rpm_outliers.sum()}个异常)', fontsize=title_size, fontweight='bold')
+    ax2.legend(fontsize=legend_size)
     ax2.grid(True, alpha=0.3, axis='y')
     
     # ========== (c) Pmax异常检测 ==========
@@ -610,9 +617,9 @@ def plot_data_cleaning(df: pd.DataFrame, output_dir: str = 'visualization_output
     ax3.axhline(250, color=colors['danger'], linestyle='--', linewidth=2)
     ax3.axhline(50, color=colors['danger'], linestyle='--', linewidth=2)
     
-    ax3.set_ylabel('P_max (bar)', fontsize=14)
-    ax3.set_title(f'(c) Pmax箱线图 ({pmax_outliers.sum()}个异常)', fontsize=11, fontweight='bold')
-    ax3.legend(fontsize=12)
+    ax3.set_ylabel('P_max (bar)', fontsize=label_size)
+    ax3.set_title(f'(c) Pmax箱线图 ({pmax_outliers.sum()}个异常)', fontsize=title_size, fontweight='bold')
+    ax3.legend(fontsize=legend_size)
     ax3.grid(True, alpha=0.3, axis='y')
     ax3.set_xlim([0.5, 1.5])
     
@@ -636,10 +643,10 @@ def plot_data_cleaning(df: pd.DataFrame, output_dir: str = 'visualization_output
             verticalalignment='top', horizontalalignment='right',
             bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.6))
     
-    ax4.set_xlabel('Z-score', fontsize=14)
-    ax4.set_ylabel('频次', fontsize=14)
-    ax4.set_title('(d) Pcomp Z-score分布', fontsize=11, fontweight='bold')
-    ax4.legend(fontsize=12)
+    ax4.set_xlabel('Z-score', fontsize=label_size)
+    ax4.set_ylabel('频次', fontsize=label_size)
+    ax4.set_title('(d) Pcomp Z-score分布', fontsize=title_size, fontweight='bold')
+    ax4.legend(fontsize=legend_size)
     ax4.grid(True, alpha=0.3)
     
     # ========== (e) 清洗效果对比 ==========
@@ -657,8 +664,8 @@ def plot_data_cleaning(df: pd.DataFrame, output_dir: str = 'visualization_output
                 f'{count} ({count/len(df)*100:.1f}%)',
                 va='center', fontsize=10, fontweight='bold')
     
-    ax5.set_xlabel('样本数量', fontsize=14)
-    ax5.set_title('(e) 数据清洗流程效果', fontsize=11, fontweight='bold')
+    ax5.set_xlabel('样本数量', fontsize=label_size)
+    ax5.set_title('(e) 数据清洗流程效果', fontsize=title_size, fontweight='bold')
     ax5.grid(True, alpha=0.3, axis='x')
     ax5.set_xlim(0, len(df) * 1.2)
     
@@ -684,10 +691,10 @@ def plot_data_cleaning(df: pd.DataFrame, output_dir: str = 'visualization_output
     ax6.axhline(1.2, color=colors['info'], linestyle=':',
                linewidth=1, alpha=0.7)
     
-    ax6.set_xlabel('采样点', fontsize=14)
-    ax6.set_ylabel('P_max / P_comp', fontsize=14)
-    ax6.set_title('(f) 物理约束一致性检查', fontsize=11, fontweight='bold')
-    ax6.legend(fontsize=12)
+    ax6.set_xlabel('采样点', fontsize=label_size)
+    ax6.set_ylabel('P_max / P_comp', fontsize=label_size)
+    ax6.set_title('(f) 物理约束一致性检查', fontsize=title_size, fontweight='bold')
+    ax6.legend(fontsize=legend_size)
     ax6.grid(True, alpha=0.3)
     ax6.set_ylim([0.5, 2.5])
     
@@ -712,32 +719,39 @@ def plot_data_cleaning(df: pd.DataFrame, output_dir: str = 'visualization_output
     ax7.plot(x, stats.norm.pdf(x, mu, sigma), 'r-', linewidth=2,
             label=f'正态拟合 μ={mu:.1f}, σ={sigma:.1f}')
     
-    ax7.set_xlabel('P_max (bar)', fontsize=14)
-    ax7.set_ylabel('概率密度', fontsize=14)
-    ax7.set_title('(g) 清洗前后分布对比', fontsize=11, fontweight='bold')
-    ax7.legend(fontsize=12)
+    ax7.set_xlabel('P_max (bar)', fontsize=label_size)
+    ax7.set_ylabel('概率密度', fontsize=label_size)
+    ax7.set_title('(g) 清洗前后分布对比', fontsize=title_size, fontweight='bold')
+    ax7.legend(fontsize=legend_size)
     ax7.grid(True, alpha=0.3)
     
-    plt.suptitle('数据清洗与异常值剔除流程', fontsize=14, fontweight='bold', y=0.995)
+    plt.suptitle('数据清洗与异常值剔除流程', fontsize=PLOT_CONFIG.FONT_SIZE_SUPTITLE, fontweight='bold', y=0.995)
     
     # 设置所有刻度标签字体大小
     for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7]:
-        set_tick_fontsize(ax, fontsize=14)
+        set_tick_fontsize(ax, fontsize=tick_size)
     
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, 'data_cleaning.svg')
-    plt.savefig(save_path, bbox_inches='tight', facecolor='white', format='svg')
+    # 使用全局save_figure函数保存
+    save_path = save_figure(fig, 'preprocessing', 'data_cleaning.svg')
     plt.close()
-    print(f"  ✓ 已保存: {save_path}")
     
     return fig
 
 
-def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, output_dir: str = 'visualization_output') -> plt.Figure:
+def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, output_dir: str = None) -> plt.Figure:
     """可视化4: 数据的标准化处理与参数关联"""
     print("\n[4/4] 生成标准化处理与参数关联可视化...")
     
+    # 使用全局配置
     colors = COLORS
+    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
+    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
+    legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
+    title_size = PLOT_CONFIG.FONT_SIZE_TITLE
+    
+    # 输出目录默认使用全局配置
+    if output_dir is None:
+        output_dir = PATH_CONFIG.VIS_PREPROCESSING_DIR
     
     # 选择关键参数并删除缺失值
     params = ['rpm', 'P_max', 'P_comp', 'T_exh']
@@ -777,11 +791,11 @@ def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, out
         patch.set_facecolor(colors['dark'])
         patch.set_alpha(0.6)
     
-    ax1.set_ylabel('原始值 (不同单位)', fontsize=14)
-    ax1.set_title('(a) 原始数据 - 量纲不一致', fontsize=11, fontweight='bold')
+    ax1.set_ylabel('原始值 (不同单位)', fontsize=label_size)
+    ax1.set_title('(a) 原始数据 - 量纲不一致', fontsize=title_size, fontweight='bold')
     ax1.grid(True, alpha=0.3, axis='y')
-    ax1.tick_params(axis='x', rotation=45, labelsize=14)
-    ax1.tick_params(axis='y', labelsize=14)
+    ax1.tick_params(axis='x', rotation=45, labelsize=tick_size)
+    ax1.tick_params(axis='y', labelsize=tick_size)
     
     # 标注单位
     units = {'rpm': 'rpm', 'P_max': 'bar', 'P_comp': 'bar', 'T_exh': 'K'}
@@ -798,11 +812,11 @@ def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, out
         patch.set_facecolor(colors['info'])
         patch.set_alpha(0.7)
     
-    ax2.set_ylabel('归一化值 [0, 1]', fontsize=14)
-    ax2.set_title('(b) Min-Max标准化', fontsize=11, fontweight='bold')
+    ax2.set_ylabel('归一化值 [0, 1]', fontsize=label_size)
+    ax2.set_title('(b) Min-Max标准化', fontsize=title_size, fontweight='bold')
     ax2.grid(True, alpha=0.3, axis='y')
-    ax2.tick_params(axis='x', rotation=45, labelsize=14)
-    ax2.tick_params(axis='y', labelsize=14)
+    ax2.tick_params(axis='x', rotation=45, labelsize=tick_size)
+    ax2.tick_params(axis='y', labelsize=tick_size)
     ax2.set_ylim([-0.1, 1.1])
     
     # ========== (c) Z-score标准化 ==========
@@ -820,12 +834,12 @@ def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, out
     ax3.axhline(3, color=colors['danger'], linestyle=':',
                linewidth=1, alpha=0.7)
     
-    ax3.set_ylabel('标准化值 (μ=0, σ=1)', fontsize=14)
-    ax3.set_title('(c) Z-score标准化', fontsize=11, fontweight='bold')
-    ax3.legend(fontsize=12)
+    ax3.set_ylabel('标准化值 (μ=0, σ=1)', fontsize=label_size)
+    ax3.set_title('(c) Z-score标准化', fontsize=title_size, fontweight='bold')
+    ax3.legend(fontsize=legend_size)
     ax3.grid(True, alpha=0.3, axis='y')
-    ax3.tick_params(axis='x', rotation=45, labelsize=14)
-    ax3.tick_params(axis='y', labelsize=14)
+    ax3.tick_params(axis='x', rotation=45, labelsize=tick_size)
+    ax3.tick_params(axis='y', labelsize=tick_size)
     ax3.set_ylim([-4, 4])
     
     # ========== (d) 相关性热力图 - 原始数据 ==========
@@ -836,8 +850,8 @@ def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, out
     
     ax4.set_xticks(range(len(corr_raw.columns)))
     ax4.set_yticks(range(len(corr_raw.columns)))
-    ax4.set_xticklabels(corr_raw.columns, rotation=45, ha='right', fontsize=14)
-    ax4.set_yticklabels(corr_raw.columns, fontsize=14)
+    ax4.set_xticklabels(corr_raw.columns, rotation=45, ha='right', fontsize=tick_size)
+    ax4.set_yticklabels(corr_raw.columns, fontsize=tick_size)
     
     # 添加相关系数数值
     for i in range(len(corr_raw)):
@@ -846,7 +860,7 @@ def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, out
             ax4.text(j, i, f'{corr_raw.iloc[i, j]:.2f}',
                     ha="center", va="center", fontsize=8, color=text_color)
     
-    ax4.set_title('(d) 原始数据相关性矩阵', fontsize=11, fontweight='bold')
+    ax4.set_title('(d) 原始数据相关性矩阵', fontsize=title_size, fontweight='bold')
     plt.colorbar(im, ax=ax4, fraction=0.046, pad=0.04)
     
     # ========== (e) Pcomp估算 vs 实测 ==========
@@ -872,10 +886,10 @@ def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, out
                     verticalalignment='top',
                     bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.6))
     
-    ax5.set_xlabel('P_comp 实测 (bar)', fontsize=14)
-    ax5.set_ylabel('P_comp 估算 (bar)', fontsize=14)
-    ax5.set_title('(e) Pcomp物理模型估算', fontsize=11, fontweight='bold')
-    ax5.legend(fontsize=12)
+    ax5.set_xlabel('P_comp 实测 (bar)', fontsize=label_size)
+    ax5.set_ylabel('P_comp 估算 (bar)', fontsize=label_size)
+    ax5.set_title('(e) Pcomp物理模型估算', fontsize=title_size, fontweight='bold')
+    ax5.legend(fontsize=legend_size)
     ax5.grid(True, alpha=0.3)
     
     # ========== (f) 参数散点矩阵 ==========
@@ -904,10 +918,10 @@ def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, out
             verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.6))
     
-    ax6.set_xlabel(f'{param1}', fontsize=14)
-    ax6.set_ylabel(f'{param2}', fontsize=14)
-    ax6.set_title(f'(f) 最强相关: {param1} vs {param2}', fontsize=11, fontweight='bold')
-    ax6.legend(fontsize=12)
+    ax6.set_xlabel(f'{param1}', fontsize=label_size)
+    ax6.set_ylabel(f'{param2}', fontsize=label_size)
+    ax6.set_title(f'(f) 最强相关: {param1} vs {param2}', fontsize=title_size, fontweight='bold')
+    ax6.legend(fontsize=legend_size)
     ax6.grid(True, alpha=0.3)
     
     # ========== (g) PCA降维可视化 ==========
@@ -922,11 +936,11 @@ def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, out
                              s=30, alpha=0.6, edgecolors='black', linewidths=0.3)
         
         cbar = plt.colorbar(scatter, ax=ax7)
-        cbar.set_label('RPM', fontsize=12)
+        cbar.set_label('RPM', fontsize=legend_size)
         
-        ax7.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)', fontsize=14)
-        ax7.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)', fontsize=14)
-        ax7.set_title('(g) PCA主成分分析', fontsize=11, fontweight='bold')
+        ax7.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)', fontsize=label_size)
+        ax7.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)', fontsize=label_size)
+        ax7.set_title('(g) PCA主成分分析', fontsize=title_size, fontweight='bold')
         ax7.grid(True, alpha=0.3)
         ax7.axhline(0, color='k', linewidth=0.5)
         ax7.axvline(0, color='k', linewidth=0.5)
@@ -944,8 +958,8 @@ def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, out
         ax8.text(val + 0.02, bar.get_y() + bar.get_height()/2,
                 f'{val:.2f}', va='center', fontsize=9, fontweight='bold')
     
-    ax8.set_xlabel('标准化方差', fontsize=10)
-    ax8.set_title('(h) 特征方差重要性', fontsize=11, fontweight='bold')
+    ax8.set_xlabel('标准化方差', fontsize=label_size)
+    ax8.set_title('(h) 特征方差重要性', fontsize=title_size, fontweight='bold')
     ax8.grid(True, alpha=0.3, axis='x')
     
     # ========== (i) 标准化方法对比表 ==========
@@ -977,18 +991,16 @@ def plot_normalization_correlation(df: pd.DataFrame, df_clean: pd.DataFrame, out
         table[(2, j)].set_facecolor(colors['success'])
         table[(2, j)].set_alpha(0.3)
     
-    ax9.set_title('(i) 标准化方法对比', fontsize=11, fontweight='bold', pad=20)
+    ax9.set_title('(i) 标准化方法对比', fontsize=title_size, fontweight='bold', pad=20)
     
-    plt.suptitle('数据标准化处理与参数关联分析', fontsize=14, fontweight='bold', y=0.995)
+    plt.suptitle('数据标准化处理与参数关联分析', fontsize=PLOT_CONFIG.FONT_SIZE_SUPTITLE, fontweight='bold', y=0.995)
     
     # 设置所有刻度标签字体大小
     for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9]:
-        set_tick_fontsize(ax, fontsize=14)
+        set_tick_fontsize(ax, fontsize=tick_size)
     
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, 'normalization_correlation.svg')
-    plt.savefig(save_path, bbox_inches='tight', facecolor='white', format='svg')
+    # 使用全局save_figure函数保存
+    save_path = save_figure(fig, 'preprocessing', 'normalization_correlation.svg')
     plt.close()
-    print(f"  ✓ 已保存: {save_path}")
     
     return fig
