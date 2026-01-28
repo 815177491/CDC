@@ -59,5 +59,8 @@ calibration_data.csv
 *.pt
 *.svg
 
-# Documentation (local only, not uploaded)
-docs/
+# 忽略所有 .md 文件
+.md
+
+# 不忽略 README.md 文件
+!README.md
