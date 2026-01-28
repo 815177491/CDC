@@ -766,7 +766,7 @@ $T_{\text{exh}}$的误差阈值设为5%，高于$P_{\text{comp}}$和$P_{\text{ma
 
 ### 4.3.5 校准结果
 
-![图4-14 校准收敛曲线](../visualization_output/calibration/calibration_convergence.svg)
+![图4-14 校准收敛曲线](../visualization_output/calibration/calibration_exp_sim_lines.svg)
 
 **图4-14 三阶段校准收敛曲线**：各阶段误差随迭代次数的变化，所有阶段均达到目标阈值。
 
@@ -803,7 +803,7 @@ $R^2$越接近1，表示模型解释数据变异的能力越强。
 
 ### 4.4.2 验证结果
 
-![图4-15 校准验证结果](../visualization_output/calibration/calibration_validation.svg)
+![图4-15 校准验证结果](../visualization_output/calibration/calibration_45degree_scatter.svg)
 
 **图4-15 多工况校准验证结果**：左列为仿真值与实验值随工况变化的对比曲线，右列为45°诊断散点图。散点越接近对角线，表示预测越准确。三个输出变量均表现出良好的预测能力，散点分布紧密围绕对角线。
 
@@ -829,7 +829,7 @@ $$S_{ij} = \frac{\Delta y_i / y_i}{\Delta p_j / p_j}$$
 
 式中$\Delta p_j / p_j = \pm 10\%$为参数扰动幅度。
 
-![图4-16 敏感性分析](../visualization_output/calibration/sensitivity_analysis.svg)
+![图4-16 敏感性分析](../visualization_output/calibration/calibration_bland_altman.svg)
 
 **图4-16 校准参数敏感性分析**：热图展示各参数对输出变量的影响程度。颜色越深表示敏感度越高。敏感度矩阵的近似对角化结构验证了分步解耦策略的有效性——每个输出变量主要由一组参数控制，与其他参数的耦合较弱。
 
