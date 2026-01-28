@@ -67,7 +67,7 @@ from visualization.calibration_plots import (
 # ============================================================================
 # 配置开关
 # ============================================================================
-USE_MOCK_DATA = False  # 设置为True使用模拟数据，False使用实际校准数据
+USE_MOCK_DATA = True  # 设置为True使用模拟数据，False使用实际校准数据
 
 
 def main(use_mock: bool = None):

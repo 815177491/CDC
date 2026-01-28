@@ -40,7 +40,7 @@ class PhysicsParams:
     # 基准值（健康状态）
     Pmax_base: float = DEFAULT_ENGINE_CONFIG.Pmax_base          # 基准最大压力 [bar]
     Pcomp_base: float = DEFAULT_ENGINE_CONFIG.Pcomp_base        # 基准压缩压力 [bar]
-    Texh_base: float = DEFAULT_ENGINE_CONFIG.Texh_base          # 基准排温 [°C]
+    Texh_base: float = DEFAULT_ENGINE_CONFIG.Texh_base          # 基准排温 [K]
     
     # 物理约束权重
     lambda_physics: float = DEFAULT_ENGINE_CONFIG.lambda_physics
@@ -98,9 +98,9 @@ class PhysicsConstraints(nn.Module):
         batch_size = obs.shape[0]
         
         # 反归一化获取实际物理量
-        Pmax = obs[:, 0] * 200.0   # 假设归一化系数
-        Pcomp = obs[:, 1] * 150.0
-        Texh = obs[:, 2] * 500.0
+        Pmax = obs[:, 0] * 200.0   # 假设归一化系数 [bar]
+        Pcomp = obs[:, 1] * 150.0  # [bar]
+        Texh = obs[:, 2] * 800.0   # [K] (范围约400-800K)
         
         # 计算残差（与健康基准的偏差）
         delta_Pmax = (Pmax - self.params.Pmax_base) / self.params.Pmax_base

@@ -43,7 +43,7 @@ from calibration.data_loader import CalibrationDataLoader
 from engine import MarineEngine0D
 
 
-def run_calibration(n_points: int = 5, 
+def run_calibration(n_points: int = 10, 
                     data_file: str = None,
                     export_results: bool = True,
                     verbose: bool = True) -> dict:
@@ -51,7 +51,7 @@ def run_calibration(n_points: int = 5,
     运行三阶段校准流程
     
     Args:
-        n_points: 使用的校准工况点数量，默认5个
+        n_points: 使用的校准工况点数量，默认10个
         data_file: 校准数据文件路径，默认为 data/raw/calibration_data.csv
         export_results: 是否导出结果文件，默认True
         verbose: 是否打印详细信息，默认True
@@ -124,7 +124,8 @@ def run_calibration(n_points: int = 5,
                 ('验证结果', 'calibration_validation.csv')
             ]
             for desc, fname in output_files:
-                fpath = os.path.join(PATH_CONFIG.DATA_DIR, fname)
+                # 校准器导出到 data/calibration/ 目录
+                fpath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, fname)
                 if os.path.exists(fpath):
                     size_kb = os.path.getsize(fpath) / 1024
                     print(f"  ✓ {desc}: {fpath} ({size_kb:.1f} KB)")
@@ -151,8 +152,8 @@ def main():
     parser.add_argument(
         '-n', '--n-points',
         type=int,
-        default=5,
-        help='校准工况点数量 (默认: 5)'
+        default=10,
+        help='校准工况点数量 (默认: 10)'
     )
     
     parser.add_argument(

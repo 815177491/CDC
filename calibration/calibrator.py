@@ -300,9 +300,6 @@ class EngineCalibrator:
         print("第二阶段: 燃烧放热规律校准")
         print("=" * 50)
         
-        if 'compression' not in self.results or not self.results['compression'].success:
-            warnings.warn("压缩段校准未完成或失败, 继续燃烧段校准")
-        
         # 重置收敛跟踪
         self._reset_convergence_tracking('combustion')
         
@@ -355,8 +352,8 @@ class EngineCalibrator:
         result = differential_evolution(
             objective,
             bounds=bounds,
-            maxiter=50,  # 增加迭代次数以充分探索参数空间
-            popsize=15,  # 增加种群大小以提高全局搜索能力
+            maxiter=15,  # 统一为15次迭代
+            popsize=15,  # 种群大小
             seed=42,
             polish=True,  # 启用局部精化以提高精度
             disp=True,
@@ -426,8 +423,8 @@ class EngineCalibrator:
         # 重置收敛跟踪
         self._reset_convergence_tracking('heat_transfer')
         
-        # 筛选有排温数据的点
-        valid_points = [p for p in self.calibration_points if p.T_exhaust > 100]
+        # 筛选有排温数据的点（T_exhaust为开尔文，373K ≈ 100°C）
+        valid_points = [p for p in self.calibration_points if p.T_exhaust > 373]
         
         if not valid_points:
             print("警告: 无有效排温数据, 跳过传热校准")
@@ -453,10 +450,10 @@ class EngineCalibrator:
             for cond, T_exp in zip(conditions, T_exp_list):
                 try:
                     self.engine.run_cycle(cond)
-                    T_sim = self.engine.get_exhaust_temp()
+                    T_sim = self.engine.get_exhaust_temp()  # 返回开尔文
                     
-                    # 排温绝对误差
-                    error_T = ((T_sim - T_exp) / (T_exp + 273.15)) ** 2
+                    # 排温相对误差（T_exp已经是开尔文）
+                    error_T = ((T_sim - T_exp) / T_exp) ** 2
                     total_error += error_T
                     valid_count += 1
                 except Exception:
@@ -488,8 +485,8 @@ class EngineCalibrator:
         errors = []
         for cond, T_exp in zip(conditions, T_exp_list):
             self.engine.run_cycle(cond)
-            T_sim = self.engine.get_exhaust_temp()
-            errors.append(abs(T_sim - T_exp) / (T_exp + 273.15))
+            T_sim = self.engine.get_exhaust_temp()  # 返回开尔文
+            errors.append(abs(T_sim - T_exp) / T_exp)  # T_exp已经是开尔文
         
         mean_error = np.mean(errors)
         
@@ -593,7 +590,8 @@ class EngineCalibrator:
                     'Pcomp_error': (Pcomp_sim - point.P_comp) / point.P_comp * 100,
                     'Texh_exp': point.T_exhaust,
                     'Texh_sim': Texh_sim,
-                    'Texh_error': (Texh_sim - point.T_exhaust) / (point.T_exhaust + 273.15) * 100 if point.T_exhaust > 100 else 0.0
+                    # T_exhaust 已统一为开尔文，直接计算相对误差
+                    'Texh_error': (Texh_sim - point.T_exhaust) / point.T_exhaust * 100 if point.T_exhaust > 100 else 0.0
                 }
                 self.validation_results.append(result)
                 

@@ -23,8 +23,8 @@ class CalibrationPoint:
     P_comp: float           # 压缩压力 [bar]
     P_max: float            # 最大爆发压力 [bar]
     P_ign: float            # 点火压力 [bar]
-    T_exhaust: float        # 排气温度 [°C]
-    T_exhaust_tc: float     # 涡轮前排温 [°C]
+    T_exhaust: float        # 排气温度 [K]
+    T_exhaust_tc: float     # 涡轮前排温 [K]
 
 
 class CalibrationDataLoader:
@@ -116,6 +116,17 @@ class CalibrationDataLoader:
                 # 原始是°C, 转换为K
                 df['T_scav'] = df['T_scav'] + 273.15
             # 否则已经是K, 保持不变
+        
+        # 排气温度: 检查是否已经是K (>200则假设是K)
+        if 'T_exhaust' in df.columns:
+            if df['T_exhaust'].mean() < 400:
+                # 原始是°C, 转换为K (排温通常在200-500°C)
+                df['T_exhaust'] = df['T_exhaust'] + 273.15
+            # 否则已经是K, 保持不变
+        
+        if 'T_exhaust_tc' in df.columns:
+            if df['T_exhaust_tc'].mean() < 400:
+                df['T_exhaust_tc'] = df['T_exhaust_tc'] + 273.15
         
         # 共轨压力: 原始单位为bar, 转换为Pa
         if 'p_rail' in df.columns:
@@ -228,10 +239,13 @@ class CalibrationDataLoader:
         # 按RPM分层抽样, 覆盖不同负荷
         rpm_range = steady_df['rpm'].max() - steady_df['rpm'].min()
         if rpm_range > 10:
-            # 分层抽样
+            # 分层抽样 - 使用 .copy() 避免 SettingWithCopyWarning
+            steady_df = steady_df.copy()
             steady_df['rpm_bin'] = pd.cut(steady_df['rpm'], bins=n_points)
+            # 使用 include_groups=False 避免 FutureWarning
             sampled = steady_df.groupby('rpm_bin', observed=True).apply(
-                lambda x: x.sample(n=min(1, len(x))) if len(x) > 0 else x
+                lambda x: x.sample(n=min(1, len(x))) if len(x) > 0 else x,
+                include_groups=False
             ).reset_index(drop=True)
         else:
             # 均匀抽样

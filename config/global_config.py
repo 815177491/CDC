@@ -216,7 +216,7 @@ class EngineConfig:
     # 基准值（健康状态）- 用于诊断
     Pmax_base: float = 150.0         # 基准最大压力 [bar]
     Pcomp_base: float = 120.0        # 基准压缩压力 [bar]
-    Texh_base: float = 400.0         # 基准排温 [°C]
+    Texh_base: float = 673.15        # 基准排温 [K] (400°C = 673.15K)
     
     # 物理约束权重 - 用于PINN训练
     lambda_physics: float = 0.1
