@@ -1,15 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-校准过程可视化绘图模块
+校准结果核心可视化模块
 ======================
-提供模型校准过程与结果的可视化绑定函数。
+提供模型校准结果的核心可视化函数，采用IEEE/Elsevier学术期刊风格。
 
-包括:
-1. 校准收敛曲线 (单曲线展示)
-2. 校准前后对比 (Pmax/Pcomp/Texh 实验vs仿真)
-3. 误差分布分析 (箱线图/柱状图)
-4. 校准参数汇总 (水平条形图)
+统一风格规范:
+- 散点: s=100, alpha=0.8, edgecolors='black', linewidths=1.5, zorder=5
+- 参考线: 'k--', linewidth=2.0 (45度理想线)
+- 误差带: fill_between(), color='gray', alpha=0.15
+- 统计框: bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), 右下角
+- 网格: alpha=0.3, linestyle='--'
+- 子图标题: (a), (b), (c) 格式, fontweight='bold'
+
+核心图表:
+1. 数据加载函数 (load_convergence_data, load_validation_data, load_calibrated_params)
+2. 45度线散点对比图 (标准学术风格)
+3. Bland-Altman一致性分析图
+4. 实验-仿真点线对比图
 
 Author: CDC Project
 Date: 2026-01-28
@@ -17,15 +25,32 @@ Date: 2026-01-28
 
 import numpy as np
 import pandas as pd
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
+import logging
+import warnings
 import os
 import json
-from typing import Dict, Optional, Tuple
-import warnings
+from typing import Dict, Optional, Tuple, List
+from scipy import stats
+
+# 抑制所有字体警告 - 在导入matplotlib之前设置
 warnings.filterwarnings('ignore')
+logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
+logging.getLogger('matplotlib.backends').setLevel(logging.ERROR)
+
+import matplotlib
+matplotlib.use('Agg')
+matplotlib.set_loglevel('error')
+
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
+from matplotlib.patches import Ellipse
+import matplotlib.transforms as transforms
+
+# 额外抑制字体警告
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+warnings.filterwarnings('ignore', message='.*Glyph.*')
+warnings.filterwarnings('ignore', message='.*font.*')
+warnings.filterwarnings('ignore', message='.*Font.*')
 
 # 导入全局配置
 from config import (
@@ -41,6 +66,42 @@ from config import (
 setup_matplotlib_style()
 
 
+# ============================================================================
+# 样式常量映射
+# ============================================================================
+LINE_WIDTH_MAIN = PLOT_CONFIG.LINE_WIDTH_THICK     # 主线宽 = 2.0
+LINE_WIDTH_SECONDARY = PLOT_CONFIG.LINE_WIDTH      # 次线宽 = 1.5
+MARKER_SIZE_LARGE = PLOT_CONFIG.MARKER_SIZE_LARGE  # 大标记 = 10
+MARKER_SIZE_DEFAULT = PLOT_CONFIG.MARKER_SIZE      # 默认标记 = 6
+
+# 学术风格统一参数
+ACADEMIC_SCATTER_PARAMS = {
+    's': 100,
+    'alpha': 0.8,
+    'edgecolors': 'black',
+    'linewidths': 1.5,
+    'zorder': 5
+}
+
+ACADEMIC_REFERENCE_LINE = {
+    'color': 'black',
+    'linestyle': '--',
+    'linewidth': 2.0,
+    'zorder': 1
+}
+
+ACADEMIC_ERROR_BAND = {
+    'color': 'gray',
+    'alpha': 0.15
+}
+
+ACADEMIC_STATS_BOX = {
+    'boxstyle': 'round',
+    'facecolor': 'white',
+    'alpha': 0.9
+}
+
+
 def set_tick_fontsize(ax, fontsize=None):
     """设置坐标轴刻度标签的字体大小"""
     if fontsize is None:
@@ -52,18 +113,22 @@ def set_tick_fontsize(ax, fontsize=None):
         label.set_fontsize(fontsize)
 
 
+# ============================================================================
+# 数据加载函数
+# ============================================================================
+
 def load_convergence_data(filepath: str = None) -> pd.DataFrame:
     """
     加载收敛历史数据
     
     Args:
-        filepath: CSV文件路径，默认为 data/calibration_convergence.csv
+        filepath: CSV文件路径，默认为 data/calibration/calibration_convergence.csv
         
     Returns:
         df: 收敛历史DataFrame
     """
     if filepath is None:
-        filepath = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_convergence.csv')
+        filepath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, 'calibration_convergence.csv')
     
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"收敛历史文件不存在: {filepath}")
@@ -76,13 +141,13 @@ def load_validation_data(filepath: str = None) -> pd.DataFrame:
     加载验证结果数据
     
     Args:
-        filepath: CSV文件路径，默认为 data/calibration_validation.csv
+        filepath: CSV文件路径，默认为 data/calibration/calibration_validation.csv
         
     Returns:
         df: 验证结果DataFrame
     """
     if filepath is None:
-        filepath = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_validation.csv')
+        filepath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, 'calibration_validation.csv')
     
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"验证结果文件不存在: {filepath}")
@@ -95,13 +160,13 @@ def load_calibrated_params(filepath: str = None) -> Dict:
     加载校准参数
     
     Args:
-        filepath: JSON文件路径，默认为 data/calibrated_params.json
+        filepath: JSON文件路径，默认为 data/calibration/calibrated_params.json
         
     Returns:
         params: 校准参数字典
     """
     if filepath is None:
-        filepath = os.path.join(PATH_CONFIG.DATA_DIR, 'calibrated_params.json')
+        filepath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, 'calibrated_params.json')
     
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"校准参数文件不存在: {filepath}")
@@ -111,749 +176,374 @@ def load_calibrated_params(filepath: str = None) -> Dict:
 
 
 # ============================================================================
-# 图1: 校准收敛与对比 (2×2布局)
+# 图1: 45度线散点对比图 (标准学术风格)
 # ============================================================================
 
-def plot_calibration_convergence_and_comparison(
-    convergence_df: pd.DataFrame = None,
-    validation_df: pd.DataFrame = None,
-    output_dir: str = None
-) -> plt.Figure:
+def plot_45degree_scatter(validation_df: pd.DataFrame,
+                          output_dir: str = None) -> str:
     """
-    可视化1: 校准收敛曲线与实验-仿真对比
+    绘制45度线散点对比图
     
-    2×2布局:
-    (a) 收敛曲线 (单曲线)
-    (b) Pmax 实验vs仿真散点图
-    (c) Pcomp 实验vs仿真散点图
-    (d) Texh 实验vs仿真散点图
+    经典的实验-仿真对比展示方式，带R²和误差带
+    
+    统一风格:
+    - 散点: s=100, alpha=0.8, edgecolors='black', linewidths=1.5
+    - 45度参考线: 'k--', linewidth=2.0
+    - ±10%误差带: gray, alpha=0.15
+    - 统计框: 右下角, white背景, alpha=0.9
     
     Args:
-        convergence_df: 收敛历史数据，若为None则从文件加载
-        validation_df: 验证结果数据，若为None则从文件加载
-        output_dir: 输出目录，默认使用全局配置
-        
-    Returns:
-        fig: matplotlib Figure对象
-    """
-    print("\n[1/2] 生成校准收敛与对比可视化...")
-    
-    # 使用全局配置
-    colors = COLORS
-    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
-    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
-    legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
-    title_size = PLOT_CONFIG.FONT_SIZE_TITLE
-    
-    # 输出目录默认使用全局配置
-    if output_dir is None:
-        output_dir = PATH_CONFIG.VIS_CALIBRATION_DIR
-    
-    # 加载数据
-    if convergence_df is None:
-        convergence_df = load_convergence_data()
-    if validation_df is None:
-        validation_df = load_validation_data()
-    
-    # 创建图形 - 2×2布局
-    fig = plt.figure(figsize=(14, 12))
-    gs = GridSpec(2, 2, figure=fig, hspace=0.3, wspace=0.3)
-    
-    # ========== (a) 收敛曲线 ==========
-    ax1 = fig.add_subplot(gs[0, 0])
-    
-    # 单曲线展示目标函数值
-    ax1.plot(convergence_df['iteration'], convergence_df['objective_value'],
-             color=colors['dark'], linewidth=1.5, alpha=0.5, label='目标函数值')
-    ax1.plot(convergence_df['iteration'], convergence_df['best_value'],
-             color=colors['primary'], linewidth=2, label='最优值')
-    
-    # 标记阶段分界点 (如果有多阶段数据)
-    if 'stage' in convergence_df.columns:
-        stages = convergence_df['stage'].unique()
-        stage_colors = {'compression': colors['secondary'], 
-                       'combustion': colors['orange'], 
-                       'heat_transfer': colors['teal']}
-        stage_names = {'compression': '压缩段', 
-                      'combustion': '燃烧段', 
-                      'heat_transfer': '传热段'}
-        
-        for stage in stages:
-            stage_data = convergence_df[convergence_df['stage'] == stage]
-            if len(stage_data) > 0:
-                start_iter = stage_data['iteration'].iloc[0]
-                ax1.axvline(start_iter, color=stage_colors.get(stage, colors['dark']),
-                           linestyle='--', alpha=0.7, linewidth=1.5,
-                           label=f'{stage_names.get(stage, stage)}开始')
-    
-    ax1.set_xlabel('迭代次数', fontsize=label_size)
-    ax1.set_ylabel('目标函数值', fontsize=label_size)
-    ax1.set_title('(a) 校准收敛曲线', fontsize=title_size, fontweight='bold')
-    ax1.legend(fontsize=legend_size, loc='upper right')
-    ax1.grid(True, alpha=0.3)
-    ax1.set_yscale('log')  # 对数坐标更清晰
-    
-    # ========== (b) Pmax 对比 ==========
-    ax2 = fig.add_subplot(gs[0, 1])
-    
-    Pmax_exp = validation_df['Pmax_exp']
-    Pmax_sim = validation_df['Pmax_sim']
-    
-    ax2.scatter(Pmax_exp, Pmax_sim, s=80, c=colors['primary'], 
-               alpha=0.7, edgecolors='white', linewidths=1, label='工况点')
-    
-    # y=x参考线
-    lims = [min(Pmax_exp.min(), Pmax_sim.min()) * 0.95,
-            max(Pmax_exp.max(), Pmax_sim.max()) * 1.05]
-    ax2.plot(lims, lims, 'k--', linewidth=1.5, alpha=0.7, label='y=x')
-    
-    # ±5%误差带
-    ax2.fill_between(lims, [l*0.95 for l in lims], [l*1.05 for l in lims],
-                     alpha=0.15, color=colors['primary'], label='±5%误差带')
-    
-    # 计算R²
-    ss_res = np.sum((Pmax_sim - Pmax_exp)**2)
-    ss_tot = np.sum((Pmax_exp - Pmax_exp.mean())**2)
-    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
-    
-    ax2.text(0.05, 0.95, f'$R^2$ = {r2:.4f}', transform=ax2.transAxes,
-            fontsize=legend_size, verticalalignment='top',
-            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-    
-    ax2.set_xlabel('$P_{max,exp}$ (bar)', fontsize=label_size)
-    ax2.set_ylabel('$P_{max,sim}$ (bar)', fontsize=label_size)
-    ax2.set_title('(b) 最大爆发压力对比', fontsize=title_size, fontweight='bold')
-    ax2.legend(fontsize=legend_size-1, loc='lower right')
-    ax2.grid(True, alpha=0.3)
-    ax2.set_xlim(lims)
-    ax2.set_ylim(lims)
-    ax2.set_aspect('equal')
-    
-    # ========== (c) Pcomp 对比 ==========
-    ax3 = fig.add_subplot(gs[1, 0])
-    
-    Pcomp_exp = validation_df['Pcomp_exp']
-    Pcomp_sim = validation_df['Pcomp_sim']
-    
-    ax3.scatter(Pcomp_exp, Pcomp_sim, s=80, c=colors['secondary'], 
-               alpha=0.7, edgecolors='white', linewidths=1, label='工况点')
-    
-    # y=x参考线
-    lims = [min(Pcomp_exp.min(), Pcomp_sim.min()) * 0.95,
-            max(Pcomp_exp.max(), Pcomp_sim.max()) * 1.05]
-    ax3.plot(lims, lims, 'k--', linewidth=1.5, alpha=0.7, label='y=x')
-    
-    # ±5%误差带
-    ax3.fill_between(lims, [l*0.95 for l in lims], [l*1.05 for l in lims],
-                     alpha=0.15, color=colors['secondary'], label='±5%误差带')
-    
-    # 计算R²
-    ss_res = np.sum((Pcomp_sim - Pcomp_exp)**2)
-    ss_tot = np.sum((Pcomp_exp - Pcomp_exp.mean())**2)
-    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
-    
-    ax3.text(0.05, 0.95, f'$R^2$ = {r2:.4f}', transform=ax3.transAxes,
-            fontsize=legend_size, verticalalignment='top',
-            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-    
-    ax3.set_xlabel('$P_{comp,exp}$ (bar)', fontsize=label_size)
-    ax3.set_ylabel('$P_{comp,sim}$ (bar)', fontsize=label_size)
-    ax3.set_title('(c) 压缩压力对比', fontsize=title_size, fontweight='bold')
-    ax3.legend(fontsize=legend_size-1, loc='lower right')
-    ax3.grid(True, alpha=0.3)
-    ax3.set_xlim(lims)
-    ax3.set_ylim(lims)
-    ax3.set_aspect('equal')
-    
-    # ========== (d) Texh 对比 ==========
-    ax4 = fig.add_subplot(gs[1, 1])
-    
-    Texh_exp = validation_df['Texh_exp']
-    Texh_sim = validation_df['Texh_sim']
-    
-    # 过滤有效排温数据
-    valid_mask = Texh_exp > 100
-    Texh_exp_valid = Texh_exp[valid_mask]
-    Texh_sim_valid = Texh_sim[valid_mask]
-    
-    if len(Texh_exp_valid) > 0:
-        ax4.scatter(Texh_exp_valid, Texh_sim_valid, s=80, c=colors['orange'], 
-                   alpha=0.7, edgecolors='white', linewidths=1, label='工况点')
-        
-        # y=x参考线
-        lims = [min(Texh_exp_valid.min(), Texh_sim_valid.min()) * 0.95,
-                max(Texh_exp_valid.max(), Texh_sim_valid.max()) * 1.05]
-        ax4.plot(lims, lims, 'k--', linewidth=1.5, alpha=0.7, label='y=x')
-        
-        # ±10%误差带 (排温误差允许更大)
-        ax4.fill_between(lims, [l*0.90 for l in lims], [l*1.10 for l in lims],
-                         alpha=0.15, color=colors['orange'], label='±10%误差带')
-        
-        # 计算R²
-        ss_res = np.sum((Texh_sim_valid - Texh_exp_valid)**2)
-        ss_tot = np.sum((Texh_exp_valid - Texh_exp_valid.mean())**2)
-        r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
-        
-        ax4.text(0.05, 0.95, f'$R^2$ = {r2:.4f}', transform=ax4.transAxes,
-                fontsize=legend_size, verticalalignment='top',
-                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-        
-        ax4.set_xlim(lims)
-        ax4.set_ylim(lims)
-        ax4.set_aspect('equal')
-    else:
-        ax4.text(0.5, 0.5, '无有效排温数据', transform=ax4.transAxes,
-                ha='center', va='center', fontsize=14)
-    
-    ax4.set_xlabel('$T_{exh,exp}$ (°C)', fontsize=label_size)
-    ax4.set_ylabel('$T_{exh,sim}$ (°C)', fontsize=label_size)
-    ax4.set_title('(d) 排气温度对比', fontsize=title_size, fontweight='bold')
-    ax4.legend(fontsize=legend_size-1, loc='lower right')
-    ax4.grid(True, alpha=0.3)
-    
-    # 设置所有刻度标签字体大小
-    for ax in [ax1, ax2, ax3, ax4]:
-        set_tick_fontsize(ax, fontsize=tick_size)
-    
-    plt.suptitle('模型校准收敛过程与结果验证', 
-                fontsize=PLOT_CONFIG.FONT_SIZE_SUPTITLE, fontweight='bold', y=0.995)
-    
-    # 保存图形
-    save_path = save_figure(fig, 'calibration', 'calibration_convergence_comparison.svg')
-    plt.close()
-    
-    return fig
-
-
-# ============================================================================
-# 图2: 误差分布与参数汇总 (1×2布局)
-# ============================================================================
-
-def plot_error_distribution_and_parameters(
-    validation_df: pd.DataFrame = None,
-    params: Dict = None,
-    output_dir: str = None
-) -> plt.Figure:
-    """
-    可视化2: 误差分布与校准参数汇总
-    
-    1×2布局:
-    (a) 误差分布箱线图
-    (b) 校准参数汇总条形图
-    
-    Args:
-        validation_df: 验证结果数据，若为None则从文件加载
-        params: 校准参数字典，若为None则从文件加载
-        output_dir: 输出目录，默认使用全局配置
-        
-    Returns:
-        fig: matplotlib Figure对象
-    """
-    print("\n[2/2] 生成误差分布与参数汇总可视化...")
-    
-    # 使用全局配置
-    colors = COLORS
-    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
-    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
-    legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
-    title_size = PLOT_CONFIG.FONT_SIZE_TITLE
-    
-    # 输出目录默认使用全局配置
-    if output_dir is None:
-        output_dir = PATH_CONFIG.VIS_CALIBRATION_DIR
-    
-    # 加载数据
-    if validation_df is None:
-        validation_df = load_validation_data()
-    if params is None:
-        params = load_calibrated_params()
-    
-    # 创建图形 - 1×2布局
-    fig = plt.figure(figsize=(14, 6))
-    gs = GridSpec(1, 2, figure=fig, wspace=0.35)
-    
-    # ========== (a) 误差分布箱线图 ==========
-    ax1 = fig.add_subplot(gs[0, 0])
-    
-    # 准备误差数据
-    error_data = []
-    error_labels = []
-    error_colors = []
-    
-    # Pmax误差
-    Pmax_errors = validation_df['Pmax_error'].dropna()
-    if len(Pmax_errors) > 0:
-        error_data.append(Pmax_errors)
-        error_labels.append('$P_{max}$')
-        error_colors.append(colors['primary'])
-    
-    # Pcomp误差
-    Pcomp_errors = validation_df['Pcomp_error'].dropna()
-    if len(Pcomp_errors) > 0:
-        error_data.append(Pcomp_errors)
-        error_labels.append('$P_{comp}$')
-        error_colors.append(colors['secondary'])
-    
-    # Texh误差
-    Texh_errors = validation_df['Texh_error'].dropna()
-    valid_Texh = Texh_errors[validation_df['Texh_exp'] > 100]
-    if len(valid_Texh) > 0:
-        error_data.append(valid_Texh)
-        error_labels.append('$T_{exh}$')
-        error_colors.append(colors['orange'])
-    
-    if len(error_data) > 0:
-        bp = ax1.boxplot(error_data, labels=error_labels, patch_artist=True,
-                        widths=0.6, showmeans=True,
-                        meanprops=dict(marker='D', markerfacecolor='white', 
-                                      markeredgecolor='black', markersize=8))
-        
-        # 设置颜色
-        for patch, color in zip(bp['boxes'], error_colors):
-            patch.set_facecolor(color)
-            patch.set_alpha(0.7)
-        
-        # 添加散点
-        for i, (data, color) in enumerate(zip(error_data, error_colors)):
-            x = np.random.normal(i+1, 0.04, size=len(data))
-            ax1.scatter(x, data, alpha=0.5, s=30, c=color, edgecolors='white', zorder=10)
-        
-        # 添加参考线
-        ax1.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
-        ax1.axhline(5, color=colors['warning'], linestyle='--', linewidth=1.5, 
-                   alpha=0.7, label='±5%阈值')
-        ax1.axhline(-5, color=colors['warning'], linestyle='--', linewidth=1.5, alpha=0.7)
-        
-        # 添加统计信息
-        for i, data in enumerate(error_data):
-            mean_err = np.mean(np.abs(data))
-            ax1.text(i+1, ax1.get_ylim()[1] * 0.95, f'MAE: {mean_err:.2f}%',
-                    ha='center', fontsize=9, fontweight='bold')
-    
-    ax1.set_ylabel('相对误差 (%)', fontsize=label_size)
-    ax1.set_title('(a) 校准误差分布', fontsize=title_size, fontweight='bold')
-    ax1.legend(fontsize=legend_size, loc='upper right')
-    ax1.grid(True, alpha=0.3, axis='y')
-    
-    # ========== (b) 校准参数汇总条形图 ==========
-    ax2 = fig.add_subplot(gs[0, 1])
-    
-    # 参数信息配置
-    param_config = {
-        'compression_ratio': {
-            'name': '有效压缩比',
-            'unit': '',
-            'color': colors['primary'],
-            'range': (11.0, 16.0)
-        },
-        'injection_timing': {
-            'name': '喷油正时',
-            'unit': '°CA BTDC',
-            'color': colors['secondary'],
-            'range': (-5.0, 10.0)
-        },
-        'diffusion_duration': {
-            'name': '燃烧持续期',
-            'unit': '°CA',
-            'color': colors['orange'],
-            'range': (30.0, 80.0)
-        },
-        'diffusion_shape': {
-            'name': '形状因子',
-            'unit': '',
-            'color': colors['teal'],
-            'range': (0.5, 3.0)
-        },
-        'C_woschni': {
-            'name': 'Woschni系数',
-            'unit': '',
-            'color': colors['purple'],
-            'range': (80.0, 200.0)
-        }
-    }
-    
-    # 准备数据
-    param_names = []
-    param_values = []
-    param_colors = []
-    param_ranges = []
-    
-    for key, value in params.items():
-        if key in param_config:
-            cfg = param_config[key]
-            param_names.append(f"{cfg['name']}\n({cfg['unit']})" if cfg['unit'] else cfg['name'])
-            param_values.append(value)
-            param_colors.append(cfg['color'])
-            param_ranges.append(cfg['range'])
-    
-    # 绘制水平条形图（归一化到各自范围）
-    y_pos = np.arange(len(param_names))
-    normalized_values = []
-    
-    for val, (rmin, rmax) in zip(param_values, param_ranges):
-        normalized = (val - rmin) / (rmax - rmin) * 100  # 转换为百分比
-        normalized_values.append(normalized)
-    
-    bars = ax2.barh(y_pos, normalized_values, color=param_colors, alpha=0.8,
-                   edgecolor='black', linewidth=1)
-    
-    # 添加数值标注
-    for i, (bar, val, (rmin, rmax)) in enumerate(zip(bars, param_values, param_ranges)):
-        width = bar.get_width()
-        ax2.text(width + 2, bar.get_y() + bar.get_height()/2,
-                f'{val:.2f}',
-                va='center', ha='left', fontsize=10, fontweight='bold')
-        
-        # 添加范围标注
-        ax2.text(105, bar.get_y() + bar.get_height()/2,
-                f'[{rmin:.1f}, {rmax:.1f}]',
-                va='center', ha='left', fontsize=8, color='gray')
-    
-    ax2.set_yticks(y_pos)
-    ax2.set_yticklabels(param_names, fontsize=tick_size)
-    ax2.set_xlabel('相对位置 (0-100%范围内)', fontsize=label_size)
-    ax2.set_xlim(0, 130)
-    ax2.set_title('(b) 校准参数汇总', fontsize=title_size, fontweight='bold')
-    ax2.grid(True, alpha=0.3, axis='x')
-    
-    # 添加范围边界线
-    ax2.axvline(0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
-    ax2.axvline(100, color='gray', linestyle='-', linewidth=1, alpha=0.5)
-    
-    # 设置刻度标签字体大小
-    for ax in [ax1, ax2]:
-        set_tick_fontsize(ax, fontsize=tick_size)
-    
-    plt.suptitle('校准误差分析与参数汇总', 
-                fontsize=PLOT_CONFIG.FONT_SIZE_SUPTITLE, fontweight='bold', y=0.98)
-    
-    # 保存图形
-    save_path = save_figure(fig, 'calibration', 'calibration_error_parameters.svg')
-    plt.close()
-    
-    return fig
-
-
-# ============================================================================
-# 单独绑定函数 (可独立调用)
-# ============================================================================
-
-def plot_calibration_convergence(
-    convergence_df: pd.DataFrame = None,
-    output_dir: str = None
-) -> plt.Figure:
-    """
-    可视化: 校准收敛曲线 (单独版本)
-    
-    Args:
-        convergence_df: 收敛历史数据
+        validation_df: 验证数据DataFrame
         output_dir: 输出目录
-        
-    Returns:
-        fig: matplotlib Figure对象
-    """
-    print("\n[单独] 生成校准收敛曲线...")
     
-    colors = COLORS
-    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
-    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
-    legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
-    title_size = PLOT_CONFIG.FONT_SIZE_TITLE
+    Returns:
+        输出文件路径
+    """
+    print("\n[学术图] 生成45度线散点对比图...")
     
     if output_dir is None:
         output_dir = PATH_CONFIG.VIS_CALIBRATION_DIR
-    
-    if convergence_df is None:
-        convergence_df = load_convergence_data()
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # 绘制收敛曲线
-    ax.plot(convergence_df['iteration'], convergence_df['objective_value'],
-            color=colors['dark'], linewidth=1.5, alpha=0.5, label='目标函数值')
-    ax.plot(convergence_df['iteration'], convergence_df['best_value'],
-            color=colors['primary'], linewidth=2, label='最优值')
-    
-    # 标记阶段
-    if 'stage' in convergence_df.columns:
-        stages = convergence_df['stage'].unique()
-        stage_colors = {'compression': colors['secondary'], 
-                       'combustion': colors['orange'], 
-                       'heat_transfer': colors['teal']}
-        stage_names = {'compression': '压缩段', 
-                      'combustion': '燃烧段', 
-                      'heat_transfer': '传热段'}
-        
-        for stage in stages:
-            stage_data = convergence_df[convergence_df['stage'] == stage]
-            if len(stage_data) > 0:
-                start_iter = stage_data['iteration'].iloc[0]
-                ax.axvline(start_iter, color=stage_colors.get(stage, colors['dark']),
-                          linestyle='--', alpha=0.7, linewidth=1.5,
-                          label=f'{stage_names.get(stage, stage)}')
-    
-    ax.set_xlabel('迭代次数', fontsize=label_size)
-    ax.set_ylabel('目标函数值', fontsize=label_size)
-    ax.set_title('三阶段校准收敛曲线', fontsize=title_size, fontweight='bold')
-    ax.legend(fontsize=legend_size)
-    ax.grid(True, alpha=0.3)
-    ax.set_yscale('log')
-    
-    set_tick_fontsize(ax, fontsize=tick_size)
-    
-    plt.tight_layout()
-    save_path = save_figure(fig, 'calibration', 'calibration_convergence.svg')
-    plt.close()
-    
-    return fig
-
-
-def plot_calibration_comparison(
-    validation_df: pd.DataFrame = None,
-    output_dir: str = None
-) -> plt.Figure:
-    """
-    可视化: 实验-仿真对比散点图 (单独版本)
-    
-    Args:
-        validation_df: 验证结果数据
-        output_dir: 输出目录
-        
-    Returns:
-        fig: matplotlib Figure对象
-    """
-    print("\n[单独] 生成实验-仿真对比图...")
+    os.makedirs(output_dir, exist_ok=True)
     
     colors = COLORS
-    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
     label_size = PLOT_CONFIG.FONT_SIZE_LABEL
     legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
     title_size = PLOT_CONFIG.FONT_SIZE_TITLE
-    
-    if output_dir is None:
-        output_dir = PATH_CONFIG.VIS_CALIBRATION_DIR
-    
-    if validation_df is None:
-        validation_df = load_validation_data()
+    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
     
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     
-    # 指标配置
-    metrics = [
-        ('Pmax', '$P_{max}$ (bar)', colors['primary']),
-        ('Pcomp', '$P_{comp}$ (bar)', colors['secondary']),
-        ('Texh', '$T_{exh}$ (°C)', colors['orange'])
+    indicators = [
+        ('Pmax', 'bar', colors['primary'], '$P_{max}$'),
+        ('Pcomp', 'bar', colors['success'], '$P_{comp}$'),
+        ('Texh', 'K', colors['danger'], '$T_{exh}$'),
     ]
     
-    for ax, (metric, label, color) in zip(axes, metrics):
-        exp_col = f'{metric}_exp'
-        sim_col = f'{metric}_sim'
+    for idx, (name, unit, color, label) in enumerate(indicators):
+        ax = axes[idx]
         
-        exp_data = validation_df[exp_col]
-        sim_data = validation_df[sim_col]
+        exp_col = f'{name}_exp'
+        sim_col = f'{name}_sim'
         
-        # 过滤有效数据
-        if metric == 'Texh':
-            valid_mask = exp_data > 100
-            exp_data = exp_data[valid_mask]
-            sim_data = sim_data[valid_mask]
-        
-        if len(exp_data) == 0:
-            ax.text(0.5, 0.5, '无有效数据', transform=ax.transAxes,
-                   ha='center', va='center')
+        if exp_col not in validation_df.columns:
             continue
         
-        ax.scatter(exp_data, sim_data, s=80, c=color, alpha=0.7,
-                  edgecolors='white', linewidths=1)
+        exp = validation_df[exp_col].values
+        sim = validation_df[sim_col].values
         
-        # y=x线和误差带
-        lims = [min(exp_data.min(), sim_data.min()) * 0.95,
-                max(exp_data.max(), sim_data.max()) * 1.05]
-        ax.plot(lims, lims, 'k--', linewidth=1.5, alpha=0.7)
+        # 绘制散点 (统一学术风格)
+        ax.scatter(exp, sim, color=color, label='验证点', **ACADEMIC_SCATTER_PARAMS)
         
-        err_band = 0.05 if metric != 'Texh' else 0.10
-        ax.fill_between(lims, [l*(1-err_band) for l in lims], 
-                       [l*(1+err_band) for l in lims],
-                       alpha=0.15, color=color)
+        # 45度理想线
+        lims = [min(exp.min(), sim.min()) * 0.95, max(exp.max(), sim.max()) * 1.05]
+        ax.plot(lims, lims, label='理想线 (y=x)', **ACADEMIC_REFERENCE_LINE)
         
-        # R²
-        ss_res = np.sum((sim_data - exp_data)**2)
-        ss_tot = np.sum((exp_data - exp_data.mean())**2)
-        r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
-        ax.text(0.05, 0.95, f'$R^2$ = {r2:.4f}', transform=ax.transAxes,
-               fontsize=legend_size, verticalalignment='top',
-               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        # 线性回归计算R²
+        slope, intercept, r_value, p_value, std_err = stats.linregress(exp, sim)
+        r_squared = r_value ** 2
         
-        ax.set_xlabel(f'{label} (实验)', fontsize=label_size)
-        ax.set_ylabel(f'{label} (仿真)', fontsize=label_size)
+        # ±10%误差带
+        ax.fill_between(lims, [l*0.9 for l in lims], [l*1.1 for l in lims],
+                       label='±10%误差带', **ACADEMIC_ERROR_BAND)
+        
         ax.set_xlim(lims)
         ax.set_ylim(lims)
         ax.set_aspect('equal')
-        ax.grid(True, alpha=0.3)
-        set_tick_fontsize(ax, fontsize=tick_size)
+        ax.set_xlabel(f'实验值 [{unit}]', fontsize=label_size)
+        ax.set_ylabel(f'仿真值 [{unit}]', fontsize=label_size)
+        ax.set_title(f'({chr(97+idx)}) {label}', fontsize=title_size, fontweight='bold')
+        ax.legend(loc='upper left', fontsize=legend_size-1, framealpha=0.9)
+        ax.grid(True, alpha=PLOT_CONFIG.GRID_ALPHA, linestyle='--')
+        set_tick_fontsize(ax, tick_size)
+        
+        # 添加统计信息框 (右下角)
+        mean_err = np.mean((sim - exp) / exp * 100)
+        max_err = np.max(np.abs((sim - exp) / exp * 100))
+        ax.text(0.98, 0.02, f'R² = {r_squared:.4f}\n平均误差: {mean_err:.2f}%\n最大误差: {max_err:.2f}%',
+               transform=ax.transAxes, fontsize=10, ha='right', va='bottom',
+               bbox=ACADEMIC_STATS_BOX)
     
-    plt.suptitle('校准结果验证: 实验值 vs 仿真值', 
-                fontsize=PLOT_CONFIG.FONT_SIZE_SUPTITLE, fontweight='bold')
     plt.tight_layout()
     
-    save_path = save_figure(fig, 'calibration', 'calibration_comparison.svg')
-    plt.close()
+    output_path = os.path.join(output_dir, 'calibration_45degree_scatter.svg')
+    fig.savefig(output_path, format='svg', bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    print(f"  [Saved] {output_path}")
     
-    return fig
+    return output_path
 
 
-def plot_error_distribution(
-    validation_df: pd.DataFrame = None,
-    output_dir: str = None
-) -> plt.Figure:
+# ============================================================================
+# 图2: Bland-Altman一致性分析图
+# ============================================================================
+
+def plot_bland_altman(validation_df: pd.DataFrame,
+                      output_dir: str = None) -> str:
     """
-    可视化: 误差分布箱线图 (单独版本)
+    绘制Bland-Altman一致性分析图
+    
+    医学/工程领域常用的实验-仿真一致性评估方法
+    
+    统一风格:
+    - 散点: s=100, alpha=0.8, edgecolors='black', linewidths=1.5
+    - 均值线: 实线, linewidth=2.0
+    - LoA界限: '--', 警告色
+    - 一致性区域: 浅色填充
     
     Args:
-        validation_df: 验证结果数据
+        validation_df: 验证数据DataFrame
         output_dir: 输出目录
-        
+    
     Returns:
-        fig: matplotlib Figure对象
+        输出文件路径
     """
-    print("\n[单独] 生成误差分布图...")
+    print("\n[学术图] 生成Bland-Altman一致性分析图...")
+    
+    if output_dir is None:
+        output_dir = PATH_CONFIG.VIS_CALIBRATION_DIR
+    os.makedirs(output_dir, exist_ok=True)
     
     colors = COLORS
-    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
     label_size = PLOT_CONFIG.FONT_SIZE_LABEL
     legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
     title_size = PLOT_CONFIG.FONT_SIZE_TITLE
+    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
     
-    if output_dir is None:
-        output_dir = PATH_CONFIG.VIS_CALIBRATION_DIR
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     
-    if validation_df is None:
-        validation_df = load_validation_data()
+    indicators = [
+        ('Pmax', 'bar', colors['primary'], '$P_{max}$'),
+        ('Pcomp', 'bar', colors['success'], '$P_{comp}$'),
+        ('Texh', 'K', colors['danger'], '$T_{exh}$'),
+    ]
     
-    fig, ax = plt.subplots(figsize=(8, 6))
-    
-    # 准备误差数据
-    error_data = []
-    error_labels = []
-    error_colors = [colors['primary'], colors['secondary'], colors['orange']]
-    
-    for metric, label in [('Pmax', '$P_{max}$'), ('Pcomp', '$P_{comp}$'), ('Texh', '$T_{exh}$')]:
-        errors = validation_df[f'{metric}_error'].dropna()
-        if metric == 'Texh':
-            errors = errors[validation_df['Texh_exp'] > 100]
-        if len(errors) > 0:
-            error_data.append(errors)
-            error_labels.append(label)
-    
-    if len(error_data) > 0:
-        bp = ax.boxplot(error_data, labels=error_labels, patch_artist=True,
-                       widths=0.6, showmeans=True,
-                       meanprops=dict(marker='D', markerfacecolor='white',
-                                     markeredgecolor='black', markersize=8))
+    for idx, (name, unit, color, label) in enumerate(indicators):
+        ax = axes[idx]
         
-        for patch, color in zip(bp['boxes'], error_colors[:len(error_data)]):
-            patch.set_facecolor(color)
-            patch.set_alpha(0.7)
+        exp_col = f'{name}_exp'
+        sim_col = f'{name}_sim'
         
-        for i, (data, color) in enumerate(zip(error_data, error_colors)):
-            x = np.random.normal(i+1, 0.04, size=len(data))
-            ax.scatter(x, data, alpha=0.5, s=30, c=color, edgecolors='white', zorder=10)
+        if exp_col not in validation_df.columns:
+            continue
         
-        ax.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
-        ax.axhline(5, color=colors['warning'], linestyle='--', linewidth=1.5, alpha=0.7)
-        ax.axhline(-5, color=colors['warning'], linestyle='--', linewidth=1.5, alpha=0.7)
+        exp = validation_df[exp_col].values
+        sim = validation_df[sim_col].values
+        
+        # 计算均值和差值
+        mean_vals = (exp + sim) / 2
+        diff_vals = sim - exp
+        
+        # 计算统计量
+        mean_diff = np.mean(diff_vals)
+        std_diff = np.std(diff_vals)
+        upper_loa = mean_diff + 1.96 * std_diff
+        lower_loa = mean_diff - 1.96 * std_diff
+        
+        # 绘制散点 (统一学术风格)
+        ax.scatter(mean_vals, diff_vals, color=color, **ACADEMIC_SCATTER_PARAMS)
+        
+        # 获取x轴范围用于填充
+        xlim = [mean_vals.min() * 0.95, mean_vals.max() * 1.05]
+        
+        # 均值线
+        ax.axhline(y=mean_diff, color=colors['dark'], linestyle='-', 
+                  linewidth=LINE_WIDTH_MAIN, label=f'偏差均值: {mean_diff:.2f}')
+        
+        # 95%一致性界限 (LoA)
+        ax.axhline(y=upper_loa, color=colors['warning'], linestyle='--', 
+                  linewidth=LINE_WIDTH_SECONDARY, label=f'+1.96σ: {upper_loa:.2f}')
+        ax.axhline(y=lower_loa, color=colors['warning'], linestyle='--', 
+                  linewidth=LINE_WIDTH_SECONDARY, label=f'-1.96σ: {lower_loa:.2f}')
+        
+        # 零线
+        ax.axhline(y=0, color='gray', linestyle=':', linewidth=1, alpha=0.5)
+        
+        # 填充一致性区域
+        ax.fill_between(xlim, lower_loa, upper_loa, color=color, alpha=0.1)
+        ax.set_xlim(xlim)
+        
+        ax.set_xlabel(f'均值 ({label}) [{unit}]', fontsize=label_size)
+        ax.set_ylabel(f'差值 (仿真-实验) [{unit}]', fontsize=label_size)
+        ax.set_title(f'({chr(97+idx)}) {label} Bland-Altman图', fontsize=title_size, fontweight='bold')
+        ax.legend(loc='best', fontsize=legend_size-1, framealpha=0.9)
+        ax.grid(True, alpha=PLOT_CONFIG.GRID_ALPHA, linestyle='--')
+        set_tick_fontsize(ax, tick_size)
     
-    ax.set_ylabel('相对误差 (%)', fontsize=label_size)
-    ax.set_title('校准误差分布', fontsize=title_size, fontweight='bold')
-    ax.grid(True, alpha=0.3, axis='y')
-    
-    set_tick_fontsize(ax, fontsize=tick_size)
     plt.tight_layout()
     
-    save_path = save_figure(fig, 'calibration', 'error_distribution.svg')
-    plt.close()
+    output_path = os.path.join(output_dir, 'calibration_bland_altman.svg')
+    fig.savefig(output_path, format='svg', bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    print(f"  [Saved] {output_path}")
     
-    return fig
+    return output_path
 
 
-def plot_calibrated_parameters(
-    params: Dict = None,
-    output_dir: str = None
-) -> plt.Figure:
+# ============================================================================
+# 图3: 实验-仿真点线对比图
+# ============================================================================
+
+def plot_exp_sim_comparison_lines(validation_df: pd.DataFrame, 
+                                   output_dir: str = None) -> str:
     """
-    可视化: 校准参数汇总条形图 (单独版本)
+    绘制实验-仿真点线对比图
+    
+    IEEE风格: 简洁、带误差棒、清晰标注
     
     Args:
-        params: 校准参数字典
+        validation_df: 验证数据DataFrame
         output_dir: 输出目录
-        
-    Returns:
-        fig: matplotlib Figure对象
-    """
-    print("\n[单独] 生成校准参数汇总图...")
     
-    colors = COLORS
-    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
-    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
-    title_size = PLOT_CONFIG.FONT_SIZE_TITLE
+    Returns:
+        输出文件路径
+    """
+    print("\n[学术图] 生成实验-仿真点线对比图...")
     
     if output_dir is None:
         output_dir = PATH_CONFIG.VIS_CALIBRATION_DIR
+    os.makedirs(output_dir, exist_ok=True)
     
-    if params is None:
-        params = load_calibrated_params()
+    colors = COLORS
+    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
+    legend_size = PLOT_CONFIG.FONT_SIZE_LEGEND
+    title_size = PLOT_CONFIG.FONT_SIZE_TITLE
+    tick_size = PLOT_CONFIG.FONT_SIZE_TICK
     
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     
-    # 参数配置
-    param_config = {
-        'compression_ratio': ('有效压缩比', '', colors['primary'], (11.0, 16.0)),
-        'injection_timing': ('喷油正时', '°CA BTDC', colors['secondary'], (-5.0, 10.0)),
-        'diffusion_duration': ('燃烧持续期', '°CA', colors['orange'], (30.0, 80.0)),
-        'diffusion_shape': ('形状因子', '', colors['teal'], (0.5, 3.0)),
-        'C_woschni': ('Woschni系数', '', colors['purple'], (80.0, 200.0))
-    }
+    # 工况点编号作为x轴
+    x = validation_df['point_id'].values
     
-    param_names = []
-    param_values = []
-    param_colors = []
-    param_ranges = []
+    # 三个指标的配置
+    indicators = [
+        ('Pmax', 'bar', '最大爆发压力 $P_{max}$'),
+        ('Pcomp', 'bar', '压缩压力 $P_{comp}$'),
+        ('Texh', 'K', '排气温度 $T_{exh}$'),
+    ]
     
-    for key, value in params.items():
-        if key in param_config:
-            name, unit, color, rng = param_config[key]
-            param_names.append(f"{name}\n({unit})" if unit else name)
-            param_values.append(value)
-            param_colors.append(color)
-            param_ranges.append(rng)
+    for idx, (name, unit, title) in enumerate(indicators):
+        ax = axes[idx]
+        
+        exp_col = f'{name}_exp'
+        sim_col = f'{name}_sim'
+        
+        if exp_col not in validation_df.columns:
+            continue
+        
+        exp_vals = validation_df[exp_col].values
+        sim_vals = validation_df[sim_col].values
+        
+        # 计算误差棒（假设2%测量不确定度）
+        exp_err = exp_vals * 0.02
+        sim_err = sim_vals * 0.015
+        
+        # 绘制实验值（圆形标记，实线）
+        ax.errorbar(x, exp_vals, yerr=exp_err, 
+                   fmt='o-', color=colors['primary'], 
+                   markersize=MARKER_SIZE_LARGE, linewidth=LINE_WIDTH_MAIN,
+                   capsize=4, capthick=1.5, elinewidth=1.5,
+                   label='实验值')
+        
+        # 绘制仿真值（方形标记，虚线）
+        ax.errorbar(x, sim_vals, yerr=sim_err,
+                   fmt='s--', color=colors['danger'], 
+                   markersize=MARKER_SIZE_LARGE-1, linewidth=LINE_WIDTH_MAIN,
+                   capsize=4, capthick=1.5, elinewidth=1.5,
+                   label='仿真值')
+        
+        ax.set_xlabel('工况点编号', fontsize=label_size)
+        ax.set_ylabel(f'{title} [{unit}]', fontsize=label_size)
+        ax.set_title(f'({chr(97+idx)}) {title}', fontsize=title_size, fontweight='bold')
+        ax.legend(loc='best', fontsize=legend_size, framealpha=0.9)
+        ax.grid(True, alpha=PLOT_CONFIG.GRID_ALPHA, linestyle='--')
+        ax.set_xticks(x)
+        set_tick_fontsize(ax, tick_size)
+        
+        # 添加统计信息框
+        mean_err = validation_df[f'{name}_error'].mean()
+        std_err = validation_df[f'{name}_error'].std()
+        ax.text(0.98, 0.02, f'误差: {mean_err:.2f}±{std_err:.2f}%',
+               transform=ax.transAxes, fontsize=10, ha='right', va='bottom',
+               bbox=ACADEMIC_STATS_BOX)
     
-    y_pos = np.arange(len(param_names))
-    normalized_values = [(val - rmin) / (rmax - rmin) * 100 
-                        for val, (rmin, rmax) in zip(param_values, param_ranges)]
-    
-    bars = ax.barh(y_pos, normalized_values, color=param_colors, alpha=0.8,
-                  edgecolor='black', linewidth=1)
-    
-    for i, (bar, val, (rmin, rmax)) in enumerate(zip(bars, param_values, param_ranges)):
-        width = bar.get_width()
-        ax.text(width + 2, bar.get_y() + bar.get_height()/2,
-               f'{val:.2f}', va='center', ha='left', fontsize=10, fontweight='bold')
-        ax.text(105, bar.get_y() + bar.get_height()/2,
-               f'[{rmin:.1f}, {rmax:.1f}]', va='center', ha='left', fontsize=8, color='gray')
-    
-    ax.set_yticks(y_pos)
-    ax.set_yticklabels(param_names, fontsize=tick_size)
-    ax.set_xlabel('相对位置 (0-100%范围内)', fontsize=label_size)
-    ax.set_xlim(0, 130)
-    ax.set_title('校准参数汇总', fontsize=title_size, fontweight='bold')
-    ax.grid(True, alpha=0.3, axis='x')
-    ax.axvline(0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
-    ax.axvline(100, color='gray', linestyle='-', linewidth=1, alpha=0.5)
-    
-    set_tick_fontsize(ax, fontsize=tick_size)
     plt.tight_layout()
     
-    save_path = save_figure(fig, 'calibration', 'calibrated_parameters.svg')
-    plt.close()
+    output_path = os.path.join(output_dir, 'calibration_exp_sim_lines.svg')
+    fig.savefig(output_path, format='svg', bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    print(f"  [Saved] {output_path}")
     
-    return fig
+    return output_path
+
+
+# ============================================================================
+# 生成核心学术风格图表
+# ============================================================================
+
+def generate_all_academic_plots(convergence_df: pd.DataFrame,
+                                 validation_df: pd.DataFrame,
+                                 params: dict = None,
+                                 output_dir: str = None) -> List[str]:
+    """
+    生成核心学术风格校准可视化图表
+    
+    Args:
+        convergence_df: 收敛历史DataFrame
+        validation_df: 验证数据DataFrame
+        params: 校准参数字典
+        output_dir: 输出目录
+    
+    Returns:
+        生成的文件路径列表
+    """
+    print("\n" + "=" * 60)
+    print("生成核心学术风格校准可视化图表")
+    print("=" * 60)
+    
+    if output_dir is None:
+        output_dir = PATH_CONFIG.VIS_CALIBRATION_DIR
+    os.makedirs(output_dir, exist_ok=True)
+    
+    generated_files = []
+    
+    # 1. 45度线散点图 (核心图表)
+    try:
+        path = plot_45degree_scatter(validation_df, output_dir)
+        generated_files.append(path)
+    except Exception as e:
+        print(f"  [Error] 45度线散点图: {e}")
+    
+    # 2. Bland-Altman图 (核心图表)
+    try:
+        path = plot_bland_altman(validation_df, output_dir)
+        generated_files.append(path)
+    except Exception as e:
+        print(f"  [Error] Bland-Altman图: {e}")
+    
+    # 3. 点线对比图
+    try:
+        path = plot_exp_sim_comparison_lines(validation_df, output_dir)
+        generated_files.append(path)
+    except Exception as e:
+        print(f"  [Error] 点线对比图: {e}")
+    
+    print("\n" + "-" * 60)
+    print(f"核心学术风格图表生成完成: {len(generated_files)} 个文件")
+    print("-" * 60)
+    
+    return generated_files
+
+
+if __name__ == '__main__':
+    # 测试用
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    # 使用模拟数据
+    data_dir = PATH_CONFIG.DATA_SIMULATION_DIR
+    
+    conv_df = load_convergence_data(os.path.join(data_dir, 'mock_calibration_convergence.csv'))
+    val_df = load_validation_data(os.path.join(data_dir, 'mock_calibration_validation.csv'))
+    params = load_calibrated_params(os.path.join(data_dir, 'mock_calibrated_params.json'))
+    
+    generate_all_academic_plots(conv_df, val_df, params)

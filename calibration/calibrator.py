@@ -198,33 +198,45 @@ class EngineCalibrator:
         # 重置收敛跟踪
         self._reset_convergence_tracking('compression')
         
-        # 使用所有点的平均Pcomp作为目标
-        target_Pcomp = np.mean([p.P_comp for p in self.calibration_points])
+        # 使用多个代表性工况点进行加权校准（选取高、中、低负荷各一个）
+        n_pts = len(self.calibration_points)
+        if n_pts >= 3:
+            # 选取低、中、高负荷的代表性工况点
+            ref_indices = [0, n_pts // 2, n_pts - 1]
+            ref_points = [self.calibration_points[i] for i in ref_indices]
+        else:
+            ref_points = self.calibration_points
         
-        # 选取一个代表性工况点
-        ref_point = self.calibration_points[len(self.calibration_points) // 2]
-        condition = self._point_to_condition(ref_point)
+        conditions = [self._point_to_condition(p) for p in ref_points]
         
         def objective(x):
             cr = x[0]
             self.engine.set_compression_ratio(cr)
             
-            # 仅运行压缩过程
-            try:
-                self.engine.run_compression_only(condition)
-                P_comp_sim = self.engine.get_pcomp()
-                error = ((P_comp_sim - ref_point.P_comp) / ref_point.P_comp) ** 2
-            except Exception as e:
-                error = 1e6
+            total_error = 0.0
+            valid_count = 0
+            
+            # 在多个工况点上计算加权误差
+            for point, cond in zip(ref_points, conditions):
+                try:
+                    self.engine.run_compression_only(cond)
+                    P_comp_sim = self.engine.get_pcomp()
+                    error = ((P_comp_sim - point.P_comp) / point.P_comp) ** 2
+                    total_error += error
+                    valid_count += 1
+                except Exception as e:
+                    total_error += 1e6
+            
+            avg_error = total_error / max(valid_count, 1)
             
             # 记录收敛历史
             self._record_convergence(
-                objective_value=error,
+                objective_value=avg_error,
                 parameters={'compression_ratio': cr},
                 stage='compression'
             )
             
-            return error
+            return avg_error
         
         # 优化求解
         result = minimize(
@@ -239,10 +251,14 @@ class EngineCalibrator:
         optimal_cr = result.x[0]
         self.engine.set_compression_ratio(optimal_cr)
         
-        # 验证
-        self.engine.run_compression_only(condition)
-        P_comp_sim = self.engine.get_pcomp()
-        final_error = abs(P_comp_sim - ref_point.P_comp) / ref_point.P_comp
+        # 验证 - 在所有参考工况点上计算平均误差
+        errors = []
+        for point, cond in zip(ref_points, conditions):
+            self.engine.run_compression_only(cond)
+            P_comp_sim = self.engine.get_pcomp()
+            errors.append(abs(P_comp_sim - point.P_comp) / point.P_comp)
+        
+        final_error = np.mean(errors)
         
         cal_result = CalibrationResult(
             stage='compression',
@@ -250,7 +266,7 @@ class EngineCalibrator:
             error=final_error,
             iterations=result.nit,
             success=final_error < tol,
-            message=f"Pcomp: {P_comp_sim:.2f} bar (目标: {ref_point.P_comp:.2f} bar)"
+            message=f"Pcomp平均误差: {final_error*100:.2f}% (使用{len(ref_points)}个工况点)"
         )
         
         self.results['compression'] = cal_result
@@ -263,8 +279,8 @@ class EngineCalibrator:
     
     def calibrate_combustion(self,
                               timing_bounds: Tuple[float, float] = (-5.0, 10.0),
-                              duration_bounds: Tuple[float, float] = (30.0, 80.0),
-                              shape_bounds: Tuple[float, float] = (0.5, 3.0),
+                              duration_bounds: Tuple[float, float] = (20.0, 100.0),
+                              shape_bounds: Tuple[float, float] = (0.3, 4.0),
                               tol: float = 0.03) -> CalibrationResult:
         """
         第二阶段: 燃烧放热规律校准
@@ -339,12 +355,13 @@ class EngineCalibrator:
         result = differential_evolution(
             objective,
             bounds=bounds,
-            maxiter=15,  # 减少迭代次数以加快演示
-            popsize=5,   # 减少种群大小
+            maxiter=50,  # 增加迭代次数以充分探索参数空间
+            popsize=15,  # 增加种群大小以提高全局搜索能力
             seed=42,
-            polish=False,  # 跳过抛光步骤
+            polish=True,  # 启用局部精化以提高精度
             disp=True,
-            workers=1
+            workers=1,
+            tol=0.001    # 收敛容差
         )
         
         # 应用最优参数
@@ -589,16 +606,16 @@ class EngineCalibrator:
         导出收敛历史到CSV
         
         Args:
-            filepath: 输出文件路径，默认为 data/calibration_convergence.csv
+            filepath: 输出文件路径，默认为 data/calibration/calibration_convergence.csv
             
         Returns:
             filepath: 保存的文件路径
         """
         if filepath is None:
             if PATH_CONFIG is not None:
-                filepath = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_convergence.csv')
+                filepath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, 'calibration_convergence.csv')
             else:
-                filepath = 'data/calibration_convergence.csv'
+                filepath = 'data/calibration/calibration_convergence.csv'
         
         # 确保目录存在
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -628,16 +645,16 @@ class EngineCalibrator:
         导出验证结果到CSV
         
         Args:
-            filepath: 输出文件路径，默认为 data/calibration_validation.csv
+            filepath: 输出文件路径，默认为 data/calibration/calibration_validation.csv
             
         Returns:
             filepath: 保存的文件路径
         """
         if filepath is None:
             if PATH_CONFIG is not None:
-                filepath = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_validation.csv')
+                filepath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, 'calibration_validation.csv')
             else:
-                filepath = 'data/calibration_validation.csv'
+                filepath = 'data/calibration/calibration_validation.csv'
         
         # 确保目录存在
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -657,7 +674,7 @@ class EngineCalibrator:
         导出校准参数到JSON
         
         Args:
-            filepath: 输出文件路径，默认为 data/calibrated_params.json
+            filepath: 输出文件路径，默认为 data/calibration/calibrated_params.json
             
         Returns:
             params: 校准参数字典
@@ -668,9 +685,9 @@ class EngineCalibrator:
         
         if filepath is None:
             if PATH_CONFIG is not None:
-                filepath = os.path.join(PATH_CONFIG.DATA_DIR, 'calibrated_params.json')
+                filepath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, 'calibrated_params.json')
             else:
-                filepath = 'data/calibrated_params.json'
+                filepath = 'data/calibration/calibrated_params.json'
         
         # 确保目录存在
         os.makedirs(os.path.dirname(filepath), exist_ok=True)

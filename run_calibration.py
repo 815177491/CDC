@@ -52,7 +52,7 @@ def run_calibration(n_points: int = 5,
     
     Args:
         n_points: 使用的校准工况点数量，默认5个
-        data_file: 校准数据文件路径，默认为 data/calibration_data.csv
+        data_file: 校准数据文件路径，默认为 data/raw/calibration_data.csv
         export_results: 是否导出结果文件，默认True
         verbose: 是否打印详细信息，默认True
         
@@ -61,7 +61,7 @@ def run_calibration(n_points: int = 5,
     """
     # 确定数据文件路径
     if data_file is None:
-        data_file = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_data.csv')
+        data_file = os.path.join(PATH_CONFIG.DATA_RAW_DIR, 'calibration_data.csv')
     
     # 检查数据文件
     if not os.path.exists(data_file):

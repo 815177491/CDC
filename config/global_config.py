@@ -34,6 +34,16 @@ class PathConfig:
     DATA_DIR: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data'))
     
+    # 数据子目录 - 分类存放
+    DATA_RAW_DIR: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'raw'))
+    DATA_CALIBRATION_DIR: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'calibration'))
+    DATA_TRAINING_DIR: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'training'))
+    DATA_SIMULATION_DIR: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'simulation'))
+    
     # 可视化输出目录
     VISUALIZATION_OUTPUT_DIR: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'visualization_output'))
@@ -62,6 +72,10 @@ class PathConfig:
         """确保所有目录存在"""
         dirs = [
             self.DATA_DIR,
+            self.DATA_RAW_DIR,
+            self.DATA_CALIBRATION_DIR,
+            self.DATA_TRAINING_DIR,
+            self.DATA_SIMULATION_DIR,
             self.VISUALIZATION_OUTPUT_DIR,
             self.VIS_PREPROCESSING_DIR,
             self.VIS_CALIBRATION_DIR,
@@ -210,6 +224,57 @@ class EngineConfig:
 
 
 # ============================================================================
+# 校准参数配置
+# ============================================================================
+@dataclass
+class CalibrationConfig:
+    """
+    校准参数配置
+    
+    存储校准后的模型参数，由run_calibration.py更新，
+    供其他模块统一读取。
+    """
+    # 压缩段参数
+    compression_ratio: float = 15.55       # 有效压缩比
+    
+    # 燃烧段参数 (Wiebe参数)
+    injection_timing: float = 10.0         # 喷油正时 [deg BTDC]
+    diffusion_duration: float = 57.9       # 扩散燃烧持续期 [deg]
+    diffusion_shape: float = 0.30          # 扩散燃烧形状因子
+    
+    # 传热段参数
+    C_woschni: float = 130.0               # Woschni传热系数
+    
+    # 校准误差记录
+    error_Pcomp: float = 0.14              # Pcomp误差 [%]
+    error_Pmax: float = 10.97              # Pmax误差 [%]
+    error_Texh: float = 31.23              # 排温误差 [%]
+    
+    # 校准时间戳
+    calibration_timestamp: str = "2026-01-28"
+    
+    def to_dict(self) -> Dict:
+        """转换为字典"""
+        return {
+            'compression_ratio': self.compression_ratio,
+            'injection_timing': self.injection_timing,
+            'diffusion_duration': self.diffusion_duration,
+            'diffusion_shape': self.diffusion_shape,
+            'C_woschni': self.C_woschni,
+            'error_Pcomp': self.error_Pcomp,
+            'error_Pmax': self.error_Pmax,
+            'error_Texh': self.error_Texh,
+            'calibration_timestamp': self.calibration_timestamp,
+        }
+    
+    def update_from_dict(self, params: Dict):
+        """从字典更新参数"""
+        for key, value in params.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+
+
+# ============================================================================
 # 训练配置
 # ============================================================================
 @dataclass
@@ -255,6 +320,7 @@ PATH_CONFIG = PathConfig()
 PLOT_CONFIG = PlotConfig()
 DATA_CONFIG = DataConfig()
 ENGINE_CONFIG = EngineConfig()
+CALIBRATION_CONFIG = CalibrationConfig()
 TRAINING_CONFIG = TrainingConfig()
 
 
@@ -271,6 +337,12 @@ def setup_matplotlib_style():
     - 刻度标签与轴标签14pt
     - 图例及图中文字12pt
     """
+    import warnings
+    # 抑制matplotlib字体相关警告
+    warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+    warnings.filterwarnings('ignore', message='.*Glyph.*')
+    warnings.filterwarnings('ignore', message='.*font.*')
+    
     config = PLOT_CONFIG
     
     # 使用非交互式后端
@@ -281,6 +353,7 @@ def setup_matplotlib_style():
     plt.rcParams['font.serif'] = [config.FONT_ENGLISH, config.FONT_CHINESE]
     plt.rcParams['font.family'] = 'sans-serif'
     plt.rcParams['font.monospace'] = [config.FONT_MONOSPACE]
+    # 使用ASCII减号而非Unicode减号，避免字体缺失警告
     plt.rcParams['axes.unicode_minus'] = False
     
     # 字号设置

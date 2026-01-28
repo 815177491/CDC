@@ -5,18 +5,26 @@
 ====================
 生成模型校准过程与结果的可视化图表。
 
-输出图表:
+输出图表（基础）:
 1. calibration_convergence_comparison.svg - 收敛曲线与实验-仿真对比 (2×2)
 2. calibration_error_parameters.svg - 误差分布与参数汇总 (1×2)
 
-独立图表:
-3. calibration_convergence.svg - 收敛曲线 (单独)
-4. calibration_comparison.svg - 实验-仿真对比 (单独)
-5. error_distribution.svg - 误差分布 (单独)
-6. calibrated_parameters.svg - 参数汇总 (单独)
+输出图表（学术风格 IEEE/Elsevier）:
+3. exp_sim_comparison_lines.svg - 实验-仿真点线对比
+4. convergence_log_scale.svg - 对数坐标收敛曲线
+5. residual_analysis.svg - 残差分析（QQ图+直方图）
+6. bland_altman.svg - Bland-Altman一致性分析
+7. scatter_45degree.svg - 45度线散点图
+8. operating_point_coverage.svg - 工况点覆盖分布
+9. error_bar_comparison.svg - 误差条对比图
+10. parameter_evolution.svg - 参数演化轨迹
+
+配置选项:
+- USE_MOCK_DATA: 是否使用模拟数据 (True/False)
 
 使用方法:
-    python visualize_calibration.py
+    python visualize_calibration.py           # 使用实际数据
+    python visualize_calibration.py --mock    # 使用模拟数据
 
 Author: CDC Project
 Date: 2026-01-28
@@ -24,42 +32,79 @@ Date: 2026-01-28
 
 import os
 import sys
+import argparse
+import warnings
+import logging
+
+# 在导入matplotlib相关模块之前抑制所有字体警告
+warnings.filterwarnings('ignore')
+logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
+logging.getLogger('matplotlib.backends').setLevel(logging.ERROR)
+logging.getLogger('matplotlib').setLevel(logging.ERROR)
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+warnings.filterwarnings('ignore', message='.*Glyph.*')
+warnings.filterwarnings('ignore', message='.*font.*')
+warnings.filterwarnings('ignore', message='.*Font.*')
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import PATH_CONFIG, setup_matplotlib_style
 
-# 导入可视化绑定函数
+# 导入核心可视化函数
 from visualization.calibration_plots import (
-    plot_calibration_convergence_and_comparison,
-    plot_error_distribution_and_parameters,
-    plot_calibration_convergence,
-    plot_calibration_comparison,
-    plot_error_distribution,
-    plot_calibrated_parameters,
+    # 数据加载函数
     load_convergence_data,
     load_validation_data,
-    load_calibrated_params
+    load_calibrated_params,
+    # 核心学术风格绘图函数
+    plot_45degree_scatter,
+    plot_bland_altman,
+    plot_exp_sim_comparison_lines,
+    generate_all_academic_plots
 )
 
+# ============================================================================
+# 配置开关
+# ============================================================================
+USE_MOCK_DATA = False  # 设置为True使用模拟数据，False使用实际校准数据
 
-def main():
-    """主函数"""
+
+def main(use_mock: bool = None):
+    """
+    主函数
+    
+    Args:
+        use_mock: 是否使用模拟数据，默认使用全局配置USE_MOCK_DATA
+    """
+    if use_mock is None:
+        use_mock = USE_MOCK_DATA
+    
     print("=" * 60)
     print("模型校准过程与结果可视化")
     print("=" * 60)
     
+    # 根据开关选择数据目录
+    if use_mock:
+        print("\n[模式] 使用模拟数据")
+        data_dir = PATH_CONFIG.DATA_SIMULATION_DIR
+        file_prefix = 'mock_'
+    else:
+        print("\n[模式] 使用实际校准数据")
+        data_dir = PATH_CONFIG.DATA_CALIBRATION_DIR
+        file_prefix = ''
+    
     # 使用全局配置的输出目录
     output_dir = PATH_CONFIG.VIS_CALIBRATION_DIR
     
-    # 确保输出目录存在
+    # 确保目录存在
     os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(data_dir, exist_ok=True)
     
-    # 检查数据文件是否存在
-    convergence_file = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_convergence.csv')
-    validation_file = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_validation.csv')
-    params_file = os.path.join(PATH_CONFIG.DATA_DIR, 'calibrated_params.json')
+    # 构建数据文件路径
+    convergence_file = os.path.join(data_dir, f'{file_prefix}calibration_convergence.csv')
+    validation_file = os.path.join(data_dir, f'{file_prefix}calibration_validation.csv')
+    params_file = os.path.join(data_dir, f'{file_prefix}calibrated_params.json')
     
     data_available = {
         'convergence': os.path.exists(convergence_file),
@@ -79,21 +124,21 @@ def main():
     
     if data_available['convergence']:
         try:
-            convergence_df = load_convergence_data()
+            convergence_df = load_convergence_data(convergence_file)
             print(f"\n收敛历史数据: {len(convergence_df)} 条记录")
         except Exception as e:
             print(f"\n警告: 加载收敛历史失败: {e}")
     
     if data_available['validation']:
         try:
-            validation_df = load_validation_data()
+            validation_df = load_validation_data(validation_file)
             print(f"验证结果数据: {len(validation_df)} 个工况点")
         except Exception as e:
             print(f"\n警告: 加载验证结果失败: {e}")
     
     if data_available['params']:
         try:
-            params = load_calibrated_params()
+            params = load_calibrated_params(params_file)
             print(f"校准参数: {len(params)} 个参数")
         except Exception as e:
             print(f"\n警告: 加载校准参数失败: {e}")
@@ -102,88 +147,60 @@ def main():
     generated_files = []
     
     print("\n" + "-" * 60)
-    print("生成可视化图表")
+    print("生成学术风格校准图表 (IEEE/Elsevier)")
     print("-" * 60)
     
-    # 综合图1: 收敛曲线与实验-仿真对比
+    # 学术风格校准图表 (统一风格)
+    academic_files = []
     if convergence_df is not None and validation_df is not None:
         try:
-            plot_calibration_convergence_and_comparison(
+            academic_files = generate_all_academic_plots(
                 convergence_df=convergence_df,
-                validation_df=validation_df
-            )
-            generated_files.append('calibration_convergence_comparison.svg')
-        except Exception as e:
-            print(f"  [Error] 生成收敛与对比图失败: {e}")
-    
-    # 综合图2: 误差分布与参数汇总
-    if validation_df is not None and params is not None:
-        try:
-            plot_error_distribution_and_parameters(
                 validation_df=validation_df,
-                params=params
+                params=params,
+                output_dir=output_dir
             )
-            generated_files.append('calibration_error_parameters.svg')
+            generated_files.extend(academic_files)
         except Exception as e:
-            print(f"  [Error] 生成误差与参数图失败: {e}")
+            print(f"  [Error] 生成学术风格图表失败: {e}")
     
-    # 单独图表 (可选)
-    generate_individual = True  # 设置为False可跳过单独图表
-    
-    if generate_individual:
-        print("\n生成单独图表...")
-        
-        if convergence_df is not None:
-            try:
-                plot_calibration_convergence(convergence_df=convergence_df)
-                generated_files.append('calibration_convergence.svg')
-            except Exception as e:
-                print(f"  [Error] 生成收敛曲线图失败: {e}")
-        
-        if validation_df is not None:
-            try:
-                plot_calibration_comparison(validation_df=validation_df)
-                generated_files.append('calibration_comparison.svg')
-            except Exception as e:
-                print(f"  [Error] 生成对比图失败: {e}")
-            
-            try:
-                plot_error_distribution(validation_df=validation_df)
-                generated_files.append('error_distribution.svg')
-            except Exception as e:
-                print(f"  [Error] 生成误差分布图失败: {e}")
-        
-        if params is not None:
-            try:
-                plot_calibrated_parameters(params=params)
-                generated_files.append('calibrated_parameters.svg')
-            except Exception as e:
-                print(f"  [Error] 生成参数汇总图失败: {e}")
+    # 发动机模型可视化图表已移除
+    engine_model_files = []
     
     # 汇总
     print("\n" + "=" * 60)
-    print("可视化完成!")
+    print("可视化完成汇总")
     print("=" * 60)
-    print(f"\n输出目录: {output_dir}")
-    print(f"生成文件数: {len(generated_files)}")
+    
+    # 校准相关图表
+    print(f"\n[校准可视化] 输出目录: {output_dir}")
+    print(f"  生成文件数: {len(generated_files)}")
     
     if generated_files:
-        print("\n生成的文件:")
         for f in generated_files:
-            filepath = os.path.join(output_dir, f)
-            if os.path.exists(filepath):
-                size_kb = os.path.getsize(filepath) / 1024
-                print(f"  ✓ {f} ({size_kb:.1f} KB)")
+            if f and os.path.exists(f):
+                size_kb = os.path.getsize(f) / 1024
+                print(f"  OK {os.path.basename(f)} ({size_kb:.1f} KB)")
             else:
-                print(f"  ✗ {f} (文件不存在)")
+                print(f"  FAIL {f}")
     else:
-        print("\n警告: 未生成任何文件，请检查数据是否存在。")
-        print("提示: 请先运行校准流程生成数据文件:")
-        print("  from calibration.calibrator import EngineCalibrator")
-        print("  calibrator.run_full_calibration(n_points=5, export_results=True)")
+        print("  Warning: No calibration plots generated.")
+        if use_mock:
+            print("  Hint: Run mock data generator first:")
+            print("    python scripts/generate_mock_calibration_data.py")
+        else:
+            print("  Hint: Run calibration first:")
+            print("    python run_calibration.py")
+    
+    total_files = len(generated_files)
+    print(f"\nTotal: {total_files} calibration plots generated.")
     
     return generated_files
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Calibration Visualization')
+    parser.add_argument('--mock', action='store_true', 
+                        help='使用模拟数据进行可视化')
+    args = parser.parse_args()
+    main(use_mock=args.mock)

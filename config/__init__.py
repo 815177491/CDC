@@ -24,6 +24,7 @@ from config.global_config import (
     PlotConfig,
     DataConfig,
     EngineConfig,
+    CalibrationConfig,
     TrainingConfig,
     
     # 全局配置实例
@@ -31,6 +32,7 @@ from config.global_config import (
     PLOT_CONFIG,
     DATA_CONFIG,
     ENGINE_CONFIG,
+    CALIBRATION_CONFIG,
     TRAINING_CONFIG,
     
     # 配色方案
@@ -48,6 +50,7 @@ __all__ = [
     'PlotConfig',
     'DataConfig',
     'EngineConfig',
+    'CalibrationConfig',
     'TrainingConfig',
     
     # 全局配置实例
@@ -55,6 +58,7 @@ __all__ = [
     'PLOT_CONFIG',
     'DATA_CONFIG',
     'ENGINE_CONFIG',
+    'CALIBRATION_CONFIG',
     'TRAINING_CONFIG',
     
     # 配色方案

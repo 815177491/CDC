@@ -290,16 +290,34 @@ class ThermodynamicSolver:
         """
         估算排气温度
         
-        基于膨胀终点状态进行估算
+        基于膨胀终点状态和等熵膨胀过程进行物理估算
         """
-        if 'temperature' not in self.results:
+        if 'temperature' not in self.results or 'pressure' not in self.results:
             return 0.0
         
-        # 膨胀终点温度作为排气温度的近似
-        T_exp_end = self.results['temperature'][-1]
+        # 膨胀终点状态
+        T_exp_end = self.results['temperature'][-1]  # 膨胀终点温度 [K]
+        p_exp_end = self.results['pressure'][-1]     # 膨胀终点压力 [Pa]
         
-        # 考虑排气过程中的膨胀冷却 (经验修正)
-        T_exhaust = T_exp_end * 0.85
+        # 排气背压 (扫气压力的1.05-1.1倍)
+        p_exhaust = self.p_scav * 1.05
+        
+        # 等熵膨胀过程估算排气温度
+        # T_exhaust / T_exp_end = (p_exhaust / p_exp_end)^((gamma-1)/gamma)
+        # 对于已燃气体 gamma ≈ 1.28-1.32
+        gamma_exhaust = 1.30
+        
+        if p_exp_end > p_exhaust:
+            # 正常情况：排气过程继续膨胀降温
+            T_exhaust = T_exp_end * (p_exhaust / p_exp_end) ** ((gamma_exhaust - 1) / gamma_exhaust)
+        else:
+            # 异常情况：直接使用膨胀终点温度
+            T_exhaust = T_exp_end
+        
+        # 考虑排气管壁面传热损失 (约5-10%)
+        heat_loss_factor = 0.92
+        T_exhaust = T_exhaust * heat_loss_factor
+        
         return T_exhaust
     
     def inject_leak_fault(self, leak_factor: float):

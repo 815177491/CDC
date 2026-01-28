@@ -121,21 +121,31 @@ class CalibrationDataLoader:
         if 'p_rail' in df.columns:
             df['p_rail'] = df['p_rail'] * 1e5
         
-        # 估算压缩终点压力 Pcomp_est (如果原始Pcomp数据不符合物理意义)
+        # P_comp数据校正：检测并修正可能的比例因子
         # 对于二冲程柴油机: Pcomp ≈ Pscav × (压缩比)^n, n≈1.35
-        # 使用 Pmax / Pscav 比值来反推合理的 Pcomp
-        if 'p_scav' in df.columns and 'P_max' in df.columns:
+        if 'p_scav' in df.columns and 'P_max' in df.columns and 'P_comp' in df.columns:
             # 典型压缩比13-15，多变指数1.3-1.4
-            # Pcomp 通常是 Pmax 的 0.6-0.8 倍 (取决于燃烧)
-            # 使用经验公式估算
             p_scav_bar = df['p_scav'] / 1e5
             compression_ratio_est = 14.0  # 初始估算
             n_poly = 1.35  # 多变指数
             df['P_comp_est'] = p_scav_bar * (compression_ratio_est ** n_poly)
             
-            # 如果原始 P_comp 数据明显偏离物理意义，使用估算值
-            if df['P_comp'].mean() < df['P_comp_est'].mean() * 0.3:
-                print(f"Warning: Original P_comp ({df['P_comp'].mean():.1f} bar) seems to be a KPI, not actual pressure.")
+            # 计算原始P_comp与理论估计值的比值
+            ratio = df['P_comp_est'].mean() / df['P_comp'].mean()
+            
+            # 如果比值接近10，说明P_comp数据可能被除以了10（或类似比例因子）
+            if 8.0 < ratio < 12.0:
+                scale_factor = round(ratio)  # 取整得到比例因子
+                print(f"检测到P_comp数据存在比例因子问题:")
+                print(f"  原始P_comp均值: {df['P_comp'].mean():.2f} bar")
+                print(f"  理论估计P_comp均值: {df['P_comp_est'].mean():.2f} bar")
+                print(f"  比值: {ratio:.2f}, 应用比例因子: {scale_factor}")
+                df['P_comp_original'] = df['P_comp']
+                df['P_comp'] = df['P_comp'] * scale_factor
+                print(f"  修正后P_comp均值: {df['P_comp'].mean():.2f} bar")
+            elif df['P_comp'].mean() < df['P_comp_est'].mean() * 0.3:
+                # 如果比例差异太大且不是整数倍，使用估算值
+                print(f"Warning: Original P_comp ({df['P_comp'].mean():.1f} bar) seems abnormal.")
                 print(f"Using estimated P_comp ({df['P_comp_est'].mean():.1f} bar) based on polytropic compression.")
                 df['P_comp_original'] = df['P_comp']
                 df['P_comp'] = df['P_comp_est']
@@ -157,18 +167,30 @@ class CalibrationDataLoader:
         
         使用IQR方法或物理边界过滤
         """
+        original_len = len(df)
+        
         # 物理边界过滤 - 调整为实际船机数据范围
         filters = [
             (df['rpm'] > 30) & (df['rpm'] < 120),  # 船机转速范围
             (df['P_max'] > 50) & (df['P_max'] < 250),  # Pmax范围 [bar]
-            (df['P_comp'] > 1) & (df['P_comp'] < 200),  # Pcomp范围 [bar] - 放宽下限
+            (df['P_comp'] > 1) & (df['P_comp'] < 200),  # Pcomp范围 [bar]
         ]
         
+        # 添加扫气压力过滤 - 剔除异常低负荷工况
+        if 'p_scav' in df.columns:
+            p_scav_bar = df['p_scav'] / 1e5 if df['p_scav'].mean() > 1000 else df['p_scav']
+            filters.append(p_scav_bar > 1.0)  # 扫气压力 > 1 bar
+            
         mask = np.ones(len(df), dtype=bool)
         for f in filters:
             mask &= f
         
-        return df[mask]
+        filtered_df = df[mask]
+        n_filtered = original_len - len(filtered_df)
+        if n_filtered > 0:
+            print(f"数据质量过滤: 剔除 {n_filtered} 个异常工况点 (包括p_scav < 1 bar的低负荷点)")
+        
+        return filtered_df
     
     def extract_steady_state_points(self, 
                                      window_size: int = 60,
