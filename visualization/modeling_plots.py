@@ -315,7 +315,7 @@ def plot_crank_geometry_schematic(output_dir: str = None) -> str:
                 [cylinder_height, cylinder_height], 'k-', linewidth=2.5)
         
         # 标注几何参数
-        if idx == 0:  # 只在第一个图上详细标注
+        if idx == 0:  # 在第一个图上详细标注几何参数和部件名称
             # 曲柄半径R
             ax.annotate('', xy=(0, -R), xytext=(0, 0),
                         arrowprops=dict(arrowstyle='<->', color=COLORS['danger'], lw=1.5))
@@ -326,6 +326,66 @@ def plot_crank_geometry_schematic(output_dir: str = None) -> str:
                         arrowprops=dict(arrowstyle='<->', color=COLORS['success'], lw=1.5))
             ax.text(-0.9, (piston_y + crank_y)/2, 'L', fontsize=12, 
                     color=COLORS['success'], fontweight='bold')
+            
+            # 部件名称标注
+            ax.text(1.5, 0, '曲轴中心', fontsize=10, ha='left', va='center', color='black')
+            ax.text(1.5, crank_y, '曲柄销', fontsize=10, ha='left', va='center', color=COLORS['primary'])
+            ax.text(1.5, piston_y + piston_height/2, '活塞', fontsize=10, ha='left', va='center', color=COLORS['dark'])
+            ax.text(1.0, (piston_y + crank_y)/2 + 0.3, '连杆', fontsize=10, ha='left', va='center', 
+                    color=COLORS['secondary'], rotation=80)
+            ax.text(-2.0, cylinder_height - 0.5, '气缸盖', fontsize=10, ha='center', va='center', color='black')
+            ax.text(-2.0, (cylinder_height + piston_y)/2, '气缸壁', fontsize=10, ha='center', va='center', 
+                    color='black', rotation=90)
+            
+            # 燃烧室标注
+            ax.text(0, cylinder_height - 0.4, '燃烧室', fontsize=9, ha='center', va='top', 
+                    color=COLORS['danger'], fontstyle='italic')
+            
+            # 连杆比公式
+            ax.text(0, -1.8, r'连杆比 $\lambda = R/L$', fontsize=10, ha='center', va='center', 
+                    color='gray', fontstyle='italic')
+        
+        if idx == 1:  # 在第二个图上标注活塞位移
+            # 活塞位移x标注
+            ax.annotate('', xy=(1.5, piston_y), xytext=(1.5, L + R),
+                        arrowprops=dict(arrowstyle='<->', color=COLORS['info'], lw=1.5))
+            ax.text(1.7, (piston_y + L + R)/2, 'x(θ)', fontsize=11, 
+                    color=COLORS['info'], fontweight='bold')
+            
+            # TDC参考线
+            ax.plot([-1.5, 1.5], [L + R, L + R], 'g--', linewidth=1, alpha=0.7)
+            ax.text(-1.8, L + R, 'TDC', fontsize=9, ha='right', va='center', color=COLORS['success'])
+            
+            # 部件名称标注
+            ax.text(-2.0, piston_y + piston_height/2, '活塞销', fontsize=10, ha='center', va='center', color='gray')
+            
+            # 活塞位移公式
+            ax.text(0, -1.8, r'$x = R[(1-\cos\theta) + \frac{1}{\lambda}(1-\sqrt{1-\lambda^2\sin^2\theta})]$', 
+                    fontsize=9, ha='center', va='center', color='gray')
+        
+        if idx == 2:  # 在第三个图上标注行程
+            # 行程S标注
+            S_stroke = 2 * R
+            ax.annotate('', xy=(1.8, L + R - S_stroke), xytext=(1.8, L + R),
+                        arrowprops=dict(arrowstyle='<->', color=COLORS.get('purple', '#6F42C1'), lw=2))
+            ax.text(2.0, L + R - R, 'S=2R', fontsize=11, 
+                    color=COLORS.get('purple', '#6F42C1'), fontweight='bold')
+            
+            # TDC和BDC参考线
+            ax.plot([-1.5, 2.2], [L + R, L + R], 'g--', linewidth=1, alpha=0.7)
+            ax.text(-1.8, L + R, 'TDC', fontsize=9, ha='right', va='center', color=COLORS['success'])
+            ax.plot([-1.5, 2.2], [L - R, L - R], 'r--', linewidth=1, alpha=0.7)
+            ax.text(-1.8, L - R, 'BDC', fontsize=9, ha='right', va='center', color=COLORS['danger'])
+            
+            # 余隙容积和工作容积标注
+            ax.text(0, cylinder_height - 0.4, r'$V_c$ (余隙容积)', fontsize=9, ha='center', va='top', 
+                    color=COLORS['danger'], fontstyle='italic')
+            ax.text(0, (L + R + L - R)/2, r'$V_s$ (工作容积)', fontsize=9, ha='center', va='center', 
+                    color=COLORS['primary'], fontstyle='italic')
+            
+            # 压缩比公式
+            ax.text(0, -1.8, r'压缩比 $\varepsilon = \frac{V_c + V_s}{V_c}$', 
+                    fontsize=10, ha='center', va='center', color='gray')
         
         # 标注曲轴转角
         if theta_deg > 0:

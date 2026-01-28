@@ -59,8 +59,8 @@ calibration_data.csv
 *.pt
 *.svg
 
-# 忽略所有 .md 文件
-.md
+# 忽略 docs 文件夹中的 markdown 文件
+docs/*.md
 
-# 不忽略 README.md 文件
+# 不忽略 README.md 文件（如果在根目录）
 !README.md
