@@ -33,7 +33,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 # 导入全局配置
-from config import PATH_CONFIG, ENGINE_CONFIG
+from config import PATH_CONFIG, ENGINE_CONFIG, RUNTIME_CONFIG
 
 # 导入校准模块
 from calibration.calibrator import EngineCalibrator
@@ -43,7 +43,7 @@ from calibration.data_loader import CalibrationDataLoader
 from engine import MarineEngine0D
 
 
-def run_calibration(n_points: int = 10, 
+def run_calibration(n_points: int = None, 
                     data_file: str = None,
                     export_results: bool = True,
                     verbose: bool = True) -> dict:
@@ -51,7 +51,7 @@ def run_calibration(n_points: int = 10,
     运行三阶段校准流程
     
     Args:
-        n_points: 使用的校准工况点数量，默认10个
+        n_points: 使用的校准工况点数量，默认从 RUNTIME_CONFIG.CALIBRATION_N_POINTS 读取
         data_file: 校准数据文件路径，默认为 data/raw/calibration_data.csv
         export_results: 是否导出结果文件，默认True
         verbose: 是否打印详细信息，默认True
@@ -59,9 +59,13 @@ def run_calibration(n_points: int = 10,
     Returns:
         results: 校准结果字典，包含各阶段的参数和误差
     """
+    # 参数默认值从全局配置读取
+    if n_points is None:
+        n_points = RUNTIME_CONFIG.CALIBRATION_N_POINTS
+    
     # 确定数据文件路径
     if data_file is None:
-        data_file = os.path.join(PATH_CONFIG.DATA_RAW_DIR, 'calibration_data.csv')
+        data_file = os.path.join(PATH_CONFIG.DATA_RAW_DIR, RUNTIME_CONFIG.CALIBRATION_DATA_FILE)
     
     # 检查数据文件
     if not os.path.exists(data_file):
@@ -152,8 +156,8 @@ def main():
     parser.add_argument(
         '-n', '--n-points',
         type=int,
-        default=10,
-        help='校准工况点数量 (默认: 10)'
+        default=RUNTIME_CONFIG.CALIBRATION_N_POINTS,
+        help=f'校准工况点数量 (默认: {RUNTIME_CONFIG.CALIBRATION_N_POINTS})'
     )
     
     parser.add_argument(

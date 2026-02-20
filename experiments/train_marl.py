@@ -12,6 +12,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from config import TRAINING_CONFIG, PATH_CONFIG
 from marl.env import EngineEnvConfig
 from marl.training import MAPPOTrainer
 
@@ -24,24 +25,24 @@ def parse_args():
                         help='总训练步数')
     parser.add_argument('--rollout-steps', type=int, default=2048,
                         help='每次更新的采样步数')
-    parser.add_argument('--batch-size', type=int, default=64,
-                        help='训练批大小')
-    parser.add_argument('--n-epochs', type=int, default=10,
-                        help='每次更新的训练轮数')
+    parser.add_argument('--batch-size', type=int, default=TRAINING_CONFIG.BATCH_SIZE,
+                        help=f'训练批大小 (默认: {TRAINING_CONFIG.BATCH_SIZE})')
+    parser.add_argument('--n-epochs', type=int, default=TRAINING_CONFIG.NUM_EPOCHS,
+                        help=f'每次更新的训练轮数 (默认: {TRAINING_CONFIG.NUM_EPOCHS})')
     
     # 学习率
-    parser.add_argument('--diag-lr', type=float, default=3e-4,
-                        help='诊断智能体学习率')
-    parser.add_argument('--ctrl-lr', type=float, default=3e-4,
-                        help='控制智能体学习率')
+    parser.add_argument('--diag-lr', type=float, default=TRAINING_CONFIG.LEARNING_RATE,
+                        help=f'诊断智能体学习率 (默认: {TRAINING_CONFIG.LEARNING_RATE})')
+    parser.add_argument('--ctrl-lr', type=float, default=TRAINING_CONFIG.LEARNING_RATE,
+                        help=f'控制智能体学习率 (默认: {TRAINING_CONFIG.LEARNING_RATE})')
     
     # PPO参数
-    parser.add_argument('--gamma', type=float, default=0.99,
-                        help='折扣因子')
-    parser.add_argument('--gae-lambda', type=float, default=0.95,
-                        help='GAE参数')
-    parser.add_argument('--clip-epsilon', type=float, default=0.2,
-                        help='PPO裁剪系数')
+    parser.add_argument('--gamma', type=float, default=TRAINING_CONFIG.GAMMA,
+                        help=f'折扣因子 (默认: {TRAINING_CONFIG.GAMMA})')
+    parser.add_argument('--gae-lambda', type=float, default=TRAINING_CONFIG.GAE_LAMBDA,
+                        help=f'GAE参数 (默认: {TRAINING_CONFIG.GAE_LAMBDA})')
+    parser.add_argument('--clip-epsilon', type=float, default=TRAINING_CONFIG.CLIP_EPSILON,
+                        help=f'PPO裁剪系数 (默认: {TRAINING_CONFIG.CLIP_EPSILON})')
     
     # 环境参数
     parser.add_argument('--max-ep-steps', type=int, default=200,
@@ -55,12 +56,12 @@ def parse_args():
     parser.add_argument('--device', type=str, default='cpu',
                         choices=['cpu', 'cuda'],
                         help='计算设备')
-    parser.add_argument('--save-dir', type=str, default='./checkpoints',
-                        help='模型保存目录')
+    parser.add_argument('--save-dir', type=str, default=PATH_CONFIG.CHECKPOINTS_DIR,
+                        help=f'模型保存目录 (默认: {PATH_CONFIG.CHECKPOINTS_DIR})')
     parser.add_argument('--log-interval', type=int, default=1,
                         help='日志打印间隔')
-    parser.add_argument('--save-interval', type=int, default=10,
-                        help='模型保存间隔')
+    parser.add_argument('--save-interval', type=int, default=TRAINING_CONFIG.SAVE_INTERVAL,
+                        help=f'模型保存间隔 (默认: {TRAINING_CONFIG.SAVE_INTERVAL})')
     
     return parser.parse_args()
 

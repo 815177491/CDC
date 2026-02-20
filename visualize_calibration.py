@@ -20,11 +20,12 @@
 10. parameter_evolution.svg - 参数演化轨迹
 
 配置选项:
-- USE_MOCK_DATA: 是否使用模拟数据 (True/False)
+- RUNTIME_CONFIG.USE_MOCK_DATA: 是否使用模拟数据 (在 config/global_config.py 中设置)
 
 使用方法:
-    python visualize_calibration.py           # 使用实际数据
-    python visualize_calibration.py --mock    # 使用模拟数据
+    python visualize_calibration.py           # 使用全局配置决定数据源
+    python visualize_calibration.py --mock    # 强制使用模拟数据
+    python visualize_calibration.py --no-mock # 强制使用校准结果数据
 
 Author: CDC Project
 Date: 2026-01-28
@@ -49,7 +50,7 @@ warnings.filterwarnings('ignore', message='.*Font.*')
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import PATH_CONFIG, setup_matplotlib_style
+from config import PATH_CONFIG, RUNTIME_CONFIG, setup_matplotlib_style
 
 # 导入核心可视化函数
 from visualization.calibration_plots import (
@@ -64,21 +65,15 @@ from visualization.calibration_plots import (
     generate_all_academic_plots
 )
 
-# ============================================================================
-# 配置开关
-# ============================================================================
-USE_MOCK_DATA = True  # 设置为True使用模拟数据，False使用实际校准数据
-
-
 def main(use_mock: bool = None):
     """
     主函数
     
     Args:
-        use_mock: 是否使用模拟数据，默认使用全局配置USE_MOCK_DATA
+        use_mock: 是否使用模拟数据，默认使用 RUNTIME_CONFIG.USE_MOCK_DATA
     """
     if use_mock is None:
-        use_mock = USE_MOCK_DATA
+        use_mock = RUNTIME_CONFIG.USE_MOCK_DATA
     
     print("=" * 60)
     print("模型校准过程与结果可视化")
@@ -90,7 +85,7 @@ def main(use_mock: bool = None):
         data_dir = PATH_CONFIG.DATA_SIMULATION_DIR
         file_prefix = 'mock_'
     else:
-        print("\n[模式] 使用实际校准数据")
+        print("\n[模式] 使用校准结果数据")
         data_dir = PATH_CONFIG.DATA_CALIBRATION_DIR
         file_prefix = ''
     
@@ -200,7 +195,19 @@ def main(use_mock: bool = None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Calibration Visualization')
-    parser.add_argument('--mock', action='store_true', 
-                        help='使用模拟数据进行可视化')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--mock', action='store_true', default=False,
+                       help='强制使用模拟数据')
+    group.add_argument('--no-mock', action='store_true', default=False,
+                       help='强制使用校准结果数据')
     args = parser.parse_args()
-    main(use_mock=args.mock)
+    
+    # 命令行参数优先级: --mock/--no-mock > RUNTIME_CONFIG.USE_MOCK_DATA
+    if args.mock:
+        use_mock = True
+    elif args.no_mock:
+        use_mock = False
+    else:
+        use_mock = None  # 使用 RUNTIME_CONFIG.USE_MOCK_DATA
+    
+    main(use_mock=use_mock)

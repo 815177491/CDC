@@ -10,10 +10,12 @@ import torch
 from pathlib import Path
 import json
 import time
+import os
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from config import TRAINING_CONFIG, ENGINE_CONFIG, PATH_CONFIG
 from marl.env import EngineEnv, EngineEnvConfig
 from marl.networks.pinn_kan import PIKANDiagnosticAgent
 from marl.agents.tdmpc2_controller import TDMPC2Controller, TDMPC2Config
@@ -26,11 +28,11 @@ def parse_args():
     
     parser.add_argument('--total-steps', type=int, default=100000)
     parser.add_argument('--rollout-steps', type=int, default=1024)
-    parser.add_argument('--batch-size', type=int, default=64)
+    parser.add_argument('--batch-size', type=int, default=TRAINING_CONFIG.BATCH_SIZE)
     
-    parser.add_argument('--diag-lr', type=float, default=3e-4)
-    parser.add_argument('--ctrl-lr', type=float, default=3e-4)
-    parser.add_argument('--physics-weight', type=float, default=0.1)
+    parser.add_argument('--diag-lr', type=float, default=TRAINING_CONFIG.LEARNING_RATE)
+    parser.add_argument('--ctrl-lr', type=float, default=TRAINING_CONFIG.LEARNING_RATE)
+    parser.add_argument('--physics-weight', type=float, default=ENGINE_CONFIG.lambda_physics)
     
     parser.add_argument('--kan-hidden', type=int, nargs='+', default=[32, 32])
     parser.add_argument('--kan-grid', type=int, default=5)
@@ -39,7 +41,8 @@ def parse_args():
     parser.add_argument('--mpc-samples', type=int, default=256)
     
     parser.add_argument('--device', type=str, default='cpu')
-    parser.add_argument('--save-dir', type=str, default='./checkpoints/pikan_tdmpc2')
+    parser.add_argument('--save-dir', type=str,
+                        default=os.path.join(PATH_CONFIG.CHECKPOINTS_DIR, 'pikan_tdmpc2'))
     
     return parser.parse_args()
 

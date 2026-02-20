@@ -26,6 +26,7 @@ from config.global_config import (
     EngineConfig,
     CalibrationConfig,
     TrainingConfig,
+    RuntimeConfig,
     
     # 全局配置实例
     PATH_CONFIG,
@@ -34,6 +35,7 @@ from config.global_config import (
     ENGINE_CONFIG,
     CALIBRATION_CONFIG,
     TRAINING_CONFIG,
+    RUNTIME_CONFIG,
     
     # 配色方案
     COLORS,
@@ -52,6 +54,7 @@ __all__ = [
     'EngineConfig',
     'CalibrationConfig',
     'TrainingConfig',
+    'RuntimeConfig',
     
     # 全局配置实例
     'PATH_CONFIG',
@@ -60,6 +63,7 @@ __all__ = [
     'ENGINE_CONFIG',
     'CALIBRATION_CONFIG',
     'TRAINING_CONFIG',
+    'RUNTIME_CONFIG',
     
     # 配色方案
     'COLORS',

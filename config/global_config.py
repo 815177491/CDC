@@ -275,6 +275,25 @@ class CalibrationConfig:
 
 
 # ============================================================================
+# 运行时配置
+# ============================================================================
+@dataclass
+class RuntimeConfig:
+    """
+    运行时行为配置
+    
+    集中管理各脚本的运行时开关和默认参数，
+    避免在各个脚本中分散硬编码。
+    """
+    # 数据源开关
+    USE_MOCK_DATA: bool = True                     # True=模拟数据, False=校准结果数据
+    
+    # 校准相关
+    CALIBRATION_N_POINTS: int = 10                  # 校准使用的工况点数量
+    CALIBRATION_DATA_FILE: str = 'calibration_data.csv'  # 校准数据文件名
+
+
+# ============================================================================
 # 训练配置
 # ============================================================================
 @dataclass
@@ -322,6 +341,7 @@ DATA_CONFIG = DataConfig()
 ENGINE_CONFIG = EngineConfig()
 CALIBRATION_CONFIG = CalibrationConfig()
 TRAINING_CONFIG = TrainingConfig()
+RUNTIME_CONFIG = RuntimeConfig()
 
 
 # ============================================================================

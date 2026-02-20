@@ -18,7 +18,7 @@ Date: 2026-01-24
 import os
 
 # 导入全局配置
-from config import PATH_CONFIG, setup_matplotlib_style
+from config import PATH_CONFIG, RUNTIME_CONFIG, setup_matplotlib_style
 
 # 导入数据加载模块
 from calibration.data_loader import VisualizationDataLoader
@@ -43,7 +43,7 @@ def main():
     print(f"输出目录: {os.path.abspath(output_dir)}")
     
     # 使用新的数据加载器
-    data_path = os.path.join(PATH_CONFIG.DATA_DIR, 'calibration_data.csv')
+    data_path = os.path.join(PATH_CONFIG.DATA_RAW_DIR, RUNTIME_CONFIG.CALIBRATION_DATA_FILE)
     loader = VisualizationDataLoader(data_path)
     
     try:
