@@ -11,12 +11,14 @@
 3. 传热段校准: 确定Woschni系数 (目标: 排温匹配)
 
 输出文件:
-- data/calibrated_params.json: 校准后的参数
-- data/calibration_convergence.csv: 收敛历史记录
-- data/calibration_validation.csv: 验证结果
+- data/calibration/calibrated_params.json: 校准后的参数
+- data/calibration/calibration_convergence.csv: 收敛历史记录
+- data/calibration/calibration_validation.csv: 验证结果
 
 使用方法:
-    python run_calibration.py
+    python scripts/run_calibration.py
+    python scripts/run_calibration.py -n 10
+    python scripts/run_calibration.py --data custom.csv
 
 Author: CDC Project
 Date: 2026-01-28
@@ -28,7 +30,7 @@ import argparse
 from datetime import datetime
 
 # 添加项目根目录到路径
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -128,7 +130,6 @@ def run_calibration(n_points: int = None,
                 ('验证结果', 'calibration_validation.csv')
             ]
             for desc, fname in output_files:
-                # 校准器导出到 data/calibration/ 目录
                 fpath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, fname)
                 if os.path.exists(fpath):
                     size_kb = os.path.getsize(fpath) / 1024
@@ -146,10 +147,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  python run_calibration.py                    # 使用默认参数运行
-  python run_calibration.py -n 10              # 使用10个校准点
-  python run_calibration.py --data custom.csv  # 使用自定义数据文件
-  python run_calibration.py --no-export        # 不导出结果文件
+  python scripts/run_calibration.py                    # 使用默认参数运行
+  python scripts/run_calibration.py -n 10              # 使用10个校准点
+  python scripts/run_calibration.py --data custom.csv  # 使用自定义数据文件
+  python scripts/run_calibration.py --no-export        # 不导出结果文件
         """
     )
     
@@ -164,7 +165,7 @@ def main():
         '--data',
         type=str,
         default=None,
-        help='校准数据文件路径 (默认: data/calibration_data.csv)'
+        help='校准数据文件路径 (默认: data/raw/calibration_data.csv)'
     )
     
     parser.add_argument(

@@ -5,27 +5,18 @@
 ====================
 生成模型校准过程与结果的可视化图表。
 
-输出图表（基础）:
-1. calibration_convergence_comparison.svg - 收敛曲线与实验-仿真对比 (2×2)
-2. calibration_error_parameters.svg - 误差分布与参数汇总 (1×2)
-
 输出图表（学术风格 IEEE/Elsevier）:
-3. exp_sim_comparison_lines.svg - 实验-仿真点线对比
-4. convergence_log_scale.svg - 对数坐标收敛曲线
-5. residual_analysis.svg - 残差分析（QQ图+直方图）
-6. bland_altman.svg - Bland-Altman一致性分析
-7. scatter_45degree.svg - 45度线散点图
-8. operating_point_coverage.svg - 工况点覆盖分布
-9. error_bar_comparison.svg - 误差条对比图
-10. parameter_evolution.svg - 参数演化轨迹
+1. exp_sim_comparison_lines.svg - 实验-仿真点线对比
+2. bland_altman.svg - Bland-Altman一致性分析
+3. scatter_45degree.svg - 45度线散点图
 
 配置选项:
-- RUNTIME_CONFIG.USE_MOCK_DATA: 是否使用模拟数据 (在 config/global_config.py 中设置)
+- RUNTIME_CONFIG.USE_MOCK_DATA: 是否使用模拟数据
 
 使用方法:
-    python visualize_calibration.py           # 使用全局配置决定数据源
-    python visualize_calibration.py --mock    # 强制使用模拟数据
-    python visualize_calibration.py --no-mock # 强制使用校准结果数据
+    python scripts/visualize_calibration.py           # 使用全局配置决定数据源
+    python scripts/visualize_calibration.py --mock    # 强制使用模拟数据
+    python scripts/visualize_calibration.py --no-mock # 强制使用校准结果数据
 
 Author: CDC Project
 Date: 2026-01-28
@@ -48,22 +39,25 @@ warnings.filterwarnings('ignore', message='.*font.*')
 warnings.filterwarnings('ignore', message='.*Font.*')
 
 # 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from config import PATH_CONFIG, RUNTIME_CONFIG, setup_matplotlib_style
 
-# 导入核心可视化函数
-from visualization.calibration_plots import (
-    # 数据加载函数
+# 导入可视化函数
+from visualization.calibration_data_io import (
     load_convergence_data,
     load_validation_data,
     load_calibrated_params,
-    # 核心学术风格绘图函数
+)
+from visualization.calibration_plots import (
     plot_45degree_scatter,
     plot_bland_altman,
     plot_exp_sim_comparison_lines,
-    generate_all_academic_plots
+    generate_all_academic_plots,
 )
+
 
 def main(use_mock: bool = None):
     """
@@ -145,8 +139,6 @@ def main(use_mock: bool = None):
     print("生成学术风格校准图表 (IEEE/Elsevier)")
     print("-" * 60)
     
-    # 学术风格校准图表 (统一风格)
-    academic_files = []
     if convergence_df is not None and validation_df is not None:
         try:
             academic_files = generate_all_academic_plots(
@@ -159,15 +151,11 @@ def main(use_mock: bool = None):
         except Exception as e:
             print(f"  [Error] 生成学术风格图表失败: {e}")
     
-    # 发动机模型可视化图表已移除
-    engine_model_files = []
-    
     # 汇总
     print("\n" + "=" * 60)
     print("可视化完成汇总")
     print("=" * 60)
     
-    # 校准相关图表
     print(f"\n[校准可视化] 输出目录: {output_dir}")
     print(f"  生成文件数: {len(generated_files)}")
     
@@ -185,7 +173,7 @@ def main(use_mock: bool = None):
             print("    python scripts/generate_mock_calibration_data.py")
         else:
             print("  Hint: Run calibration first:")
-            print("    python run_calibration.py")
+            print("    python scripts/run_calibration.py")
     
     total_files = len(generated_files)
     print(f"\nTotal: {total_files} calibration plots generated.")
@@ -202,12 +190,11 @@ if __name__ == '__main__':
                        help='强制使用校准结果数据')
     args = parser.parse_args()
     
-    # 命令行参数优先级: --mock/--no-mock > RUNTIME_CONFIG.USE_MOCK_DATA
     if args.mock:
         use_mock = True
     elif args.no_mock:
         use_mock = False
     else:
-        use_mock = None  # 使用 RUNTIME_CONFIG.USE_MOCK_DATA
+        use_mock = None
     
     main(use_mock=use_mock)

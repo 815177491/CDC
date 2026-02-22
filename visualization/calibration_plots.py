@@ -62,117 +62,33 @@ from config import (
     get_output_path
 )
 
+# 导入公共样式工具
+from visualization.style import (
+    set_tick_fontsize,
+    LINE_WIDTH_MAIN,
+    LINE_WIDTH_SECONDARY,
+    MARKER_SIZE_LARGE,
+    MARKER_SIZE_DEFAULT,
+    ACADEMIC_SCATTER_PARAMS,
+    ACADEMIC_REFERENCE_LINE,
+    ACADEMIC_ERROR_BAND,
+    ACADEMIC_STATS_BOX,
+)
+
+# 导入数据加载函数（向后兼容）
+from visualization.calibration_data_io import (
+    load_convergence_data,
+    load_validation_data,
+    load_calibrated_params,
+)
+
 # 应用全局matplotlib样式
 setup_matplotlib_style()
 
 
 # ============================================================================
-# 样式常量映射
+# 数据加载函数（已迁移至 visualization.calibration_data_io，此处保留向后兼容导入）
 # ============================================================================
-LINE_WIDTH_MAIN = PLOT_CONFIG.LINE_WIDTH_THICK     # 主线宽 = 2.0
-LINE_WIDTH_SECONDARY = PLOT_CONFIG.LINE_WIDTH      # 次线宽 = 1.5
-MARKER_SIZE_LARGE = PLOT_CONFIG.MARKER_SIZE_LARGE  # 大标记 = 10
-MARKER_SIZE_DEFAULT = PLOT_CONFIG.MARKER_SIZE      # 默认标记 = 6
-
-# 学术风格统一参数
-ACADEMIC_SCATTER_PARAMS = {
-    's': 100,
-    'alpha': 0.8,
-    'edgecolors': 'black',
-    'linewidths': 1.5,
-    'zorder': 5
-}
-
-ACADEMIC_REFERENCE_LINE = {
-    'color': 'black',
-    'linestyle': '--',
-    'linewidth': 2.0,
-    'zorder': 1
-}
-
-ACADEMIC_ERROR_BAND = {
-    'color': 'gray',
-    'alpha': 0.15
-}
-
-ACADEMIC_STATS_BOX = {
-    'boxstyle': 'round',
-    'facecolor': 'white',
-    'alpha': 0.9
-}
-
-
-def set_tick_fontsize(ax, fontsize=None):
-    """设置坐标轴刻度标签的字体大小"""
-    if fontsize is None:
-        fontsize = PLOT_CONFIG.FONT_SIZE_TICK
-    ax.tick_params(axis='both', which='major', labelsize=fontsize)
-    for label in ax.get_xticklabels():
-        label.set_fontsize(fontsize)
-    for label in ax.get_yticklabels():
-        label.set_fontsize(fontsize)
-
-
-# ============================================================================
-# 数据加载函数
-# ============================================================================
-
-def load_convergence_data(filepath: str = None) -> pd.DataFrame:
-    """
-    加载收敛历史数据
-    
-    Args:
-        filepath: CSV文件路径，默认为 data/calibration/calibration_convergence.csv
-        
-    Returns:
-        df: 收敛历史DataFrame
-    """
-    if filepath is None:
-        filepath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, 'calibration_convergence.csv')
-    
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"收敛历史文件不存在: {filepath}")
-    
-    return pd.read_csv(filepath)
-
-
-def load_validation_data(filepath: str = None) -> pd.DataFrame:
-    """
-    加载验证结果数据
-    
-    Args:
-        filepath: CSV文件路径，默认为 data/calibration/calibration_validation.csv
-        
-    Returns:
-        df: 验证结果DataFrame
-    """
-    if filepath is None:
-        filepath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, 'calibration_validation.csv')
-    
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"验证结果文件不存在: {filepath}")
-    
-    return pd.read_csv(filepath)
-
-
-def load_calibrated_params(filepath: str = None) -> Dict:
-    """
-    加载校准参数
-    
-    Args:
-        filepath: JSON文件路径，默认为 data/calibration/calibrated_params.json
-        
-    Returns:
-        params: 校准参数字典
-    """
-    if filepath is None:
-        filepath = os.path.join(PATH_CONFIG.DATA_CALIBRATION_DIR, 'calibrated_params.json')
-    
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"校准参数文件不存在: {filepath}")
-    
-    with open(filepath, 'r', encoding='utf-8') as f:
-        return json.load(f)
 
 
 # ============================================================================

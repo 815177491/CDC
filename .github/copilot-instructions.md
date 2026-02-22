@@ -4,18 +4,89 @@
 
 ## 项目结构
 
-| 目录                    | 说明                                                               |
-| ----------------------- | ------------------------------------------------------------------ |
-| `engine/`               | 零维柴油机热力学模型（几何运动学、燃烧放热、缸内传热、热力学求解） |
-| `calibration/`          | 三阶段分步解耦校准（压缩段→燃烧段→传热段）                         |
-| `marl/`                 | 双智能体强化学习：PINN+KAN 诊断智能体 + TD-MPC2 控制智能体         |
-| `multi_Agent/`          | 多智能体环境（engine_env、fault_injector、operating_scheduler）    |
-| `config/`               | 全局配置模块，所有参数集中管理在 `global_config.py`                |
-| `visualization/`        | 可视化绑定模块，学术期刊风格（IEEE/Elsevier）                      |
-| `visualization_output/` | 可视化输出目录，按类别分子目录                                     |
-| `scripts/`              | 辅助脚本（数据生成、敏感性分析等）                                 |
-| `experiments/`          | 实验脚本                                                           |
-| `docs/`                 | 项目文档                                                           |
+```
+CDC/
+├── engine/                    # 零维柴油机热力学模型
+│   ├── geometry.py            #   几何运动学
+│   ├── combustion.py          #   双 Wiebe 燃烧放热
+│   ├── heat_transfer.py       #   Woschni 缸内传热
+│   ├── thermodynamics.py      #   热力学微分方程求解
+│   ├── engine_model.py        #   MarineEngine0D 总入口
+│   └── config.py              #   ENGINE_CONFIG
+│
+├── calibration/               # 三阶段分步解耦校准
+│   ├── calibrator.py          #   EngineCalibrator
+│   └── data_loader.py         #   CalibrationDataLoader / VisualizationDataLoader
+│
+├── marl/                      # 双智能体强化学习
+│   ├── env.py                 #   桥接模块（→ multi_agent.env）
+│   ├── agents/                #   DiagnosticAgent / ControlAgent
+│   ├── networks/              #   PINN-KAN / Actor-Critic / SharedCritic
+│   ├── training/              #   MAPPO Trainer / ReplayBuffer
+│   └── utils/                 #   归一化、训练可视化
+│
+├── multi_agent/               # 多智能体环境（PEP 8 命名）
+│   └── env/                   #   EngineEnv / FaultInjector / OperatingScheduler
+│
+├── config/                    # 全局配置（dataclass 集中管理）
+│   ├── global_config.py       #   所有 *Config 类 & 单例
+│   └── __init__.py            #   向外导出 PLOT_CONFIG, COLORS, ...
+│
+├── visualization/             # 可视化绑定模块（IEEE/Elsevier 学术风格）
+│   ├── style.py               #   公共样式常量 & set_tick_fontsize
+│   ├── preprocessing_plots.py #   数据预处理可视化
+│   ├── calibration_plots.py   #   校准结果可视化（仅绘图函数）
+│   ├── calibration_data_io.py #   校准数据加载（load_*）
+│   └── modeling/              #   建模可视化子包
+│       ├── framework_plots.py
+│       ├── geometry_plots.py
+│       ├── timing_plots.py
+│       ├── combustion_plots.py
+│       ├── heat_transfer_plots.py
+│       ├── thermodynamic_plots.py
+│       ├── calibration_flow_plots.py
+│       ├── sensitivity_plots.py
+│       └── energy_plots.py
+│
+├── scripts/                   # 可执行入口脚本
+│   ├── run_calibration.py
+│   ├── visualize_calibration.py
+│   ├── visualize_data_preprocessing.py
+│   ├── visualize_modeling.py
+│   ├── generate_mock_calibration_data.py
+│   └── generate_sensitivity_heatmap.py
+│
+├── experiments/               # 实验 & 训练脚本
+│   ├── train_marl.py
+│   ├── train_advanced.py
+│   ├── comparison_experiments.py
+│   └── pid_tuning.py
+│
+├── data/                      # 数据目录
+│   ├── raw/                   #   原始实验数据
+│   ├── calibration/           #   校准输出
+│   └── simulation/            #   模拟/mock 数据
+│
+├── visualization_output/      # 图片输出（按 category 分子目录）
+│   ├── preprocessing/
+│   ├── calibration/
+│   └── modeling/
+│
+├── checkpoints/               # 模型检查点 (.pt)
+├── docs/                      # 项目文档
+└── .github/
+    └── copilot-instructions.md
+```
+
+### 关键设计决策
+
+| 决策                      | 说明                                                                |
+| ------------------------- | ------------------------------------------------------------------- |
+| `visualization/modeling/` | 原 `modeling_plots.py`（1500+ 行）拆分为 9 个职责单一的子模块       |
+| `visualization/style.py`  | 公共学术样式常量，避免各 `*_plots.py` 重复定义                      |
+| `calibration_data_io.py`  | 数据加载与绘图解耦，`calibration_plots.py` 只含纯绘图函数           |
+| `marl/env.py`             | 桥接模块，使 `from marl.env import EngineEnv` 透传到 `multi_agent/` |
+| `scripts/` 入口           | 所有可执行脚本集中在 `scripts/`，根目录保持干净                     |
 
 ## 文件头部模板
 
@@ -109,24 +180,67 @@ from engine.config import ENGINE_CONFIG
 - `'purple'` (#6F42C1) - 紫色
 - `'teal'` (#20C997) - 青绿色
 
+### 公共样式模块 `visualization/style.py`
+
+新增绘图代码应从 `visualization.style` 导入公共常量，避免重复定义：
+
+```python
+from visualization.style import (
+    set_tick_fontsize,
+    LINE_WIDTH_MAIN,           # 主线宽 2.0
+    LINE_WIDTH_SECONDARY,      # 次线宽 1.5
+    MARKER_SIZE_LARGE,         # 大标记 10
+    MARKER_SIZE_DEFAULT,       # 默认标记 6
+    ACADEMIC_SCATTER_PARAMS,   # 散点图统一样式
+    ACADEMIC_REFERENCE_LINE,   # 参考线样式
+    ACADEMIC_ERROR_BAND,       # 误差带样式
+    ACADEMIC_STATS_BOX,        # 统计信息框样式
+)
+```
+
 ### 绘图代码必须步骤
 
 1. 调用 `setup_matplotlib_style()` 设置全局样式（模块级别，只调用一次）
 2. 使用 `PLOT_CONFIG` 中的字号变量设置字体大小
 3. 使用 `COLORS` 字典中的颜色
-4. 使用 `save_figure(fig, category, filename)` 保存图形
+4. 使用 `visualization.style` 中的学术样式常量
+5. 使用 `save_figure(fig, category, filename)` 保存图形
 
 category 取值：`'preprocessing'` | `'calibration'` | `'training'` | `'experiments'` | `'modeling'`
+
+## 可视化模块约定
+
+### 数据加载与绘图分离
+
+- **数据加载**放在 `calibration_data_io.py`（或对应的 `*_data_io.py`）
+- **绘图函数**放在 `*_plots.py`，只接受 DataFrame / dict 参数，不直接读文件
+- 入口脚本（`scripts/visualize_*.py`）负责组装数据加载 + 绘图调用
+
+### 新增建模子图
+
+在 `visualization/modeling/` 下创建新文件，并在 `__init__.py` 中注册导出：
+
+```python
+# visualization/modeling/my_new_plots.py
+from visualization.style import set_tick_fontsize, ACADEMIC_SCATTER_PARAMS
+from config import PLOT_CONFIG, COLORS, save_figure
+
+def plot_my_new_chart():
+    ...
+    save_figure(fig, 'modeling', 'my_new_chart')
+```
 
 ## 命名规范
 
 ### 文件命名
 
-| 类型        | 命名规则           | 示例                        |
-| ----------- | ------------------ | --------------------------- |
-| Python 模块 | 小写+下划线        | `data_loader.py`            |
-| 可视化模块  | `*_plots.py`       | `preprocessing_plots.py`    |
-| 实验脚本    | `*_experiments.py` | `comparison_experiments.py` |
+| 类型        | 命名规则                      | 示例                        |
+| ----------- | ----------------------------- | --------------------------- |
+| Python 模块 | 小写+下划线                   | `data_loader.py`            |
+| 可视化模块  | `*_plots.py`                  | `preprocessing_plots.py`    |
+| 数据IO模块  | `*_data_io.py`                | `calibration_data_io.py`    |
+| 入口脚本    | `run_*.py` / `visualize_*.py` | `run_calibration.py`        |
+| 实验脚本    | `*_experiments.py`            | `comparison_experiments.py` |
 
 ### 函数命名
 

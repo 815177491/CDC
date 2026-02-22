@@ -7,6 +7,9 @@
 
 生成的图片保存在 visualization_output/modeling/ 目录下
 
+使用方法:
+    python scripts/visualize_modeling.py
+
 Author: CDC Project
 Date: 2026-01-28
 """
@@ -15,10 +18,11 @@ import sys
 import os
 
 # 添加项目根目录到路径
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-from visualization.modeling_plots import generate_all_modeling_figures
+from visualization.modeling import generate_all_modeling_figures
 
 
 def main():
@@ -26,7 +30,7 @@ def main():
     print("=" * 70)
     print("建模可视化图片生成脚本")
     print("=" * 70)
-    print(f"工作目录: {project_root}")
+    print(f"工作目录: {PROJECT_ROOT}")
     print(f"输出目录: visualization_output/modeling/")
     print("=" * 70)
     

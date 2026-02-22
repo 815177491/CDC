@@ -6,16 +6,25 @@
 生成数据预处理流程的可视化图表
 
 包括:
-1. 稳态工况的智能筛选 (优先级1)
-2. 代表性工况点的提取 (优先级2)
-3. 数据的清洗与异常值剔除 (优先级3)
-4. 数据的标准化处理与参数关联 (优先级4)
+1. 稳态工况的智能筛选
+2. 代表性工况点的提取
+3. 数据的清洗与异常值剔除
+4. 数据的标准化处理与参数关联
+
+使用方法:
+    python scripts/visualize_data_preprocessing.py
 
 Author: CDC Project
 Date: 2026-01-24
 """
 
 import os
+import sys
+
+# 添加项目根目录到路径
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # 导入全局配置
 from config import PATH_CONFIG, RUNTIME_CONFIG, setup_matplotlib_style
@@ -48,8 +57,6 @@ def main():
     
     try:
         # 读取数据段（自动选择第1段）
-        # use_full_data=True: 读取全部数据 (约300MB内存)
-        # use_full_data=False: 读取10,000行子集 (自动选择最佳数据段)
         df = loader.load_segment(use_full_data=False)
         
         # 按优先级顺序生成所有可视化
