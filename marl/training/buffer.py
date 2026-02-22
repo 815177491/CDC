@@ -1,7 +1,7 @@
 """
 经验回放缓冲区
 ==============
-存储双智能体的轨迹数据
+存储双智能体的轨迹数据（支持意图通信）
 """
 
 import numpy as np
@@ -24,13 +24,16 @@ class Transition:
     value_diag: float
     value_ctrl: float
     done: bool
+    intent_diag: Optional[np.ndarray] = None  # 诊断智能体意图向量
+    intent_ctrl: Optional[np.ndarray] = None  # 控制智能体意图向量
 
 
 class RolloutBuffer:
     """
-    双智能体经验回放缓冲区
+    双智能体经验回放缓冲区（支持意图通信）
     
-    存储一个episode的完整轨迹用于PPO更新
+    存储一个episode的完整轨迹用于PPO更新，
+    包括两个智能体的意图向量，用于训练时的意图融合更新。
     """
     
     def __init__(self, buffer_size: int = 2048, gamma: float = 0.99, gae_lambda: float = 0.95):
@@ -64,6 +67,10 @@ class RolloutBuffer:
         self.rewards_ctrl: List[float] = []
         self.values_ctrl: List[float] = []
         
+        # 意图向量（并行双向决策架构）
+        self.intents_diag: List[np.ndarray] = []
+        self.intents_ctrl: List[np.ndarray] = []
+        
         # 共享数据
         self.dones: List[bool] = []
         
@@ -87,9 +94,11 @@ class RolloutBuffer:
         reward_ctrl: float,
         value_diag: float,
         value_ctrl: float,
-        done: bool
+        done: bool,
+        intent_diag: Optional[np.ndarray] = None,
+        intent_ctrl: Optional[np.ndarray] = None
     ):
-        """添加一步转移"""
+        """添加一步转移（含意图向量）"""
         self.obs_diag.append(obs_diag.copy())
         self.obs_ctrl.append(obs_ctrl.copy())
         self.actions_diag.append(action_diag)
@@ -101,6 +110,17 @@ class RolloutBuffer:
         self.values_diag.append(value_diag)
         self.values_ctrl.append(value_ctrl)
         self.dones.append(done)
+        
+        # 存储意图向量（PIKAN 等不支持时传 None，用零向量占位）
+        if intent_diag is not None:
+            self.intents_diag.append(intent_diag.copy())
+        else:
+            self.intents_diag.append(np.zeros(16, dtype=np.float32))
+        
+        if intent_ctrl is not None:
+            self.intents_ctrl.append(intent_ctrl.copy())
+        else:
+            self.intents_ctrl.append(np.zeros(16, dtype=np.float32))
         
         self.ptr += 1
     
@@ -162,10 +182,10 @@ class RolloutBuffer:
         device: torch.device
     ) -> Tuple[Dict, Dict]:
         """
-        生成训练批次
+        生成训练批次（含意图向量）
         
         Returns:
-            (diag_batch, ctrl_batch)
+            (diag_batch, ctrl_batch) 其中每个 batch 包含 'intents' 字段
         """
         n = len(self.obs_diag)
         indices = np.random.permutation(n)
@@ -184,7 +204,8 @@ class RolloutBuffer:
                 },
                 'log_probs': torch.FloatTensor([self.log_probs_diag[i] for i in batch_indices]).to(device),
                 'advantages': torch.FloatTensor(self.advantages_diag[batch_indices]).to(device),
-                'returns': torch.FloatTensor(self.returns_diag[batch_indices]).to(device)
+                'returns': torch.FloatTensor(self.returns_diag[batch_indices]).to(device),
+                'intents': torch.FloatTensor(np.array([self.intents_diag[i] for i in batch_indices])).to(device)
             }
             
             # 控制智能体批次
@@ -197,7 +218,8 @@ class RolloutBuffer:
                 },
                 'log_probs': torch.FloatTensor([self.log_probs_ctrl[i] for i in batch_indices]).to(device),
                 'advantages': torch.FloatTensor(self.advantages_ctrl[batch_indices]).to(device),
-                'returns': torch.FloatTensor(self.returns_ctrl[batch_indices]).to(device)
+                'returns': torch.FloatTensor(self.returns_ctrl[batch_indices]).to(device),
+                'intents': torch.FloatTensor(np.array([self.intents_ctrl[i] for i in batch_indices])).to(device)
             }
             
             yield diag_batch, ctrl_batch

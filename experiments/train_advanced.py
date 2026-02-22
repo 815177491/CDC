@@ -20,7 +20,7 @@ from marl.env import EngineEnv, EngineEnvConfig
 from marl.networks.pinn_kan import PIKANDiagnosticAgent
 from marl.agents.tdmpc2_controller import TDMPC2Controller, TDMPC2Config
 from marl.training import RolloutBuffer
-from marl.utils.visualization import TrainingVisualizer, EvaluationVisualizer
+from visualization.marl_plots import plot_training_curves
 
 
 def parse_args():
@@ -90,8 +90,12 @@ class AdvancedTrainer:
         )
         self.ctrl_agent = TDMPC2Controller(tdmpc_config, device=args.device)
         
-        # 可视化
-        self.visualizer = TrainingVisualizer(save_dir=str(self.save_dir / 'plots'))
+        # 训练历史记录（直接使用dict，替代已弃用的 TrainingVisualizer）
+        self.train_history = {
+            'episodes': [], 'reward_diag': [], 'reward_ctrl': [],
+            'reward_total': [], 'loss_diag_policy': [], 'loss_ctrl_policy': [],
+            'diag_accuracy': [], 'ctrl_performance': []
+        }
         
         # 训练统计
         self.total_steps = 0
@@ -230,16 +234,19 @@ class AdvancedTrainer:
             if episode_rewards:
                 mean_reward = np.mean(episode_rewards)
                 
-                self.visualizer.update({
+                metrics = {
                     'episodes': self.episode_count,
                     'reward_diag': np.mean(experiences['reward_diag']),
                     'reward_ctrl': np.mean(experiences['reward_ctrl']),
                     'reward_total': mean_reward,
                     'loss_diag_policy': np.mean([l['policy_loss'] for l in diag_losses]),
                     'loss_ctrl_policy': np.mean([l['policy_loss'] for l in ctrl_losses]),
-                    'diag_accuracy': 0.0,  # 需要单独计算
+                    'diag_accuracy': 0.0,
                     'ctrl_performance': 0.0
-                })
+                }
+                for k, v in metrics.items():
+                    if k in self.train_history:
+                        self.train_history[k].append(v)
                 
                 print(f"更新 {update}/{n_updates} | "
                       f"奖励: {mean_reward:.2f} | "
@@ -253,9 +260,8 @@ class AdvancedTrainer:
             if update % 10 == 0:
                 self.save(f'checkpoint_{update}')
         
-        # 保存最终可视化
-        fig = self.visualizer.plot_training_curves()
-        self.visualizer.save_plot(fig, 'training_curves')
+        # 保存最终训练曲线
+        plot_training_curves(self.train_history)
         
         self.save('final')
         print("训练完成!")

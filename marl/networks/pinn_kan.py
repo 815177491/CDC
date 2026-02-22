@@ -165,9 +165,11 @@ class PhysicsConstraints(nn.Module):
 
 class PIKANDiagnosticNetwork(nn.Module):
     """
-    Physics-Informed KAN诊断网络
+    Physics-Informed KAN诊断网络（支持并行双向决策架构）
     
     结合物理约束和可解释KAN网络
+    注意：PIKAN 的两阶段意图通信为简化版——意图由 KAN 特征直接投影，
+    但动作生成不依赖对方意图（物理约束已隐式编码系统行为）。
     """
     
     def __init__(
@@ -176,13 +178,15 @@ class PIKANDiagnosticNetwork(nn.Module):
         n_fault_types: int = 4,
         kan_hidden_dims: List[int] = [32, 32],
         grid_size: int = 5,
-        physics_params: Optional[PhysicsParams] = None
+        physics_params: Optional[PhysicsParams] = None,
+        intent_dim: int = 16
     ):
         super().__init__()
         
         self.obs_dim = obs_dim
         self.n_fault_types = n_fault_types
         self.physics_params = physics_params or PhysicsParams()
+        self.intent_dim = intent_dim
         
         # KAN特征编码器
         kan_dims = [obs_dim] + kan_hidden_dims
@@ -193,6 +197,9 @@ class PIKANDiagnosticNetwork(nn.Module):
         
         # 输出头
         hidden_dim = kan_hidden_dims[-1]
+        
+        # 意图生成头（用于并行架构的意图交换）
+        self.intent_head = nn.Linear(hidden_dim, intent_dim)
         
         # 故障分类头
         self.fault_head = nn.Sequential(
@@ -223,6 +230,14 @@ class PIKANDiagnosticNetwork(nn.Module):
             nn.SiLU(),
             nn.Linear(hidden_dim, 1)
         )
+    
+    def encode(self, obs: torch.Tensor) -> torch.Tensor:
+        """Phase 1: KAN特征编码"""
+        return self.kan_encoder(obs)
+    
+    def get_intent(self, features: torch.Tensor) -> torch.Tensor:
+        """Phase 1: 生成意图向量（发送给对方智能体）"""
+        return self.intent_head(features)
     
     def forward(
         self,
@@ -302,7 +317,10 @@ class PIKANDiagnosticNetwork(nn.Module):
 
 class PIKANDiagnosticAgent:
     """
-    PINN+KAN诊断智能体封装
+    PINN+KAN诊断智能体封装（支持并行双向决策架构）
+    
+    注意：PIKAN 的意图通信为简化版——提供 encode_and_intent 接口
+    以与 MAPPOTrainer 的两阶段架构兼容，但动作生成不依赖对方意图。
     """
     
     def __init__(
@@ -313,21 +331,25 @@ class PIKANDiagnosticAgent:
         grid_size: int = 5,
         lr: float = 3e-4,
         physics_weight: float = 0.1,
+        intent_dim: int = 16,
         device: str = 'cpu'
     ):
         self.device = torch.device(device)
         self.physics_weight = physics_weight
+        self.intent_dim = intent_dim
         
         self.network = PIKANDiagnosticNetwork(
             obs_dim=obs_dim,
             n_fault_types=n_fault_types,
             kan_hidden_dims=kan_hidden_dims,
-            grid_size=grid_size
+            grid_size=grid_size,
+            intent_dim=intent_dim
         ).to(self.device)
         
         self.optimizer = torch.optim.Adam(self.network.parameters(), lr=lr)
     
-    def act(self, obs: np.ndarray, deterministic: bool = False) -> Dict:
+    def act(self, obs: np.ndarray, deterministic: bool = False, peer_intent=None) -> Dict:
+        """选择动作（兼容两阶段接口，PIKAN 暂不使用 peer_intent）"""
         with torch.no_grad():
             obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
             actions, log_probs, value, _ = self.network(obs_tensor, compute_physics_loss=False)
@@ -340,6 +362,42 @@ class PIKANDiagnosticAgent:
             'value': value.item()
         }
     
+    def encode_and_intent(self, obs: np.ndarray):
+        """
+        两阶段决策 - Phase 1: 特征提取和意图生成
+        
+        Returns:
+            (features, intent): 编码特征和意图向量
+        """
+        with torch.no_grad():
+            obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
+            features = self.network.encode(obs_tensor)
+            intent = self.network.get_intent(features)
+        return features, intent
+    
+    def act_with_intent(self, features, peer_intent, deterministic: bool = False) -> Dict:
+        """
+        两阶段决策 - Phase 2: 生成动作（PIKAN 简化版，不融合 peer_intent）
+        """
+        with torch.no_grad():
+            # PIKAN 直接用自身特征生成动作（物理约束已编码系统行为）
+            fault_logits = self.network.fault_head(features)
+            fault_probs = F.softmax(fault_logits, dim=-1)
+            fault_type = fault_probs.argmax(dim=-1)
+            fault_log_prob = F.log_softmax(fault_logits, dim=-1).gather(
+                1, fault_type.unsqueeze(-1)
+            )
+            severity = self.network.severity_head(features)
+            confidence = self.network.confidence_head(features)
+        
+        return {
+            'fault_type': fault_type.item(),
+            'severity': severity.cpu().numpy().flatten()[0],
+            'confidence': confidence.cpu().numpy().flatten()[0],
+            'log_prob': fault_log_prob.cpu().numpy().flatten()[0],
+            'value': self.network.critic(features).item()
+        }
+    
     def update(
         self,
         obs_batch: torch.Tensor,
@@ -349,7 +407,8 @@ class PIKANDiagnosticAgent:
         returns: torch.Tensor,
         clip_epsilon: float = 0.2,
         entropy_coef: float = 0.01,
-        value_coef: float = 0.5
+        value_coef: float = 0.5,
+        peer_intent_batch=None  # 兼容接口，PIKAN 暂不使用
     ) -> Dict[str, float]:
         """PPO + Physics损失更新"""
         

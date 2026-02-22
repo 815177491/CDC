@@ -14,10 +14,14 @@ from typing import Tuple, Dict, Optional
 
 class DiagnosticNetwork(nn.Module):
     """
-    诊断智能体网络
+    诊断智能体网络（并行双向决策架构）
     
-    输入: 观测特征（含控制历史）
+    输入: 观测特征（含控制历史）[+ 对方意图向量]
     输出: 故障分类概率 + 严重程度估计 + 置信度
+    
+    支持两阶段前向传播：
+        Phase 1: encode(obs) → features → get_intent() → intent 向量
+        Phase 2: get_action(features, peer_intent) → actions
     """
     
     def __init__(
@@ -26,7 +30,8 @@ class DiagnosticNetwork(nn.Module):
         n_fault_types: int = 4,
         hidden_dim: int = 128,
         use_lstm: bool = True,
-        use_internal_critic: bool = True
+        use_internal_critic: bool = True,
+        intent_dim: int = 16
     ):
         super().__init__()
         
@@ -35,6 +40,7 @@ class DiagnosticNetwork(nn.Module):
         self.use_lstm = use_lstm
         self.use_internal_critic = use_internal_critic
         self.hidden_dim = hidden_dim
+        self.intent_dim = intent_dim
         
         # 特征编码器
         self.encoder = nn.Sequential(
@@ -48,6 +54,15 @@ class DiagnosticNetwork(nn.Module):
         if use_lstm:
             self.lstm = nn.LSTM(hidden_dim, hidden_dim, batch_first=True)
             self.hidden_state = None
+        
+        # 意图融合层（接收对方 intent 并与自身特征融合）
+        self.intent_fusion = nn.Sequential(
+            nn.Linear(hidden_dim + intent_dim, hidden_dim),
+            nn.ReLU()
+        )
+        
+        # 意图生成头（输出给对方的意图向量）
+        self.intent_head = nn.Linear(hidden_dim, intent_dim)
         
         # Actor头 - 故障分类
         self.fault_type_head = nn.Linear(hidden_dim, n_fault_types)
@@ -71,20 +86,50 @@ class DiagnosticNetwork(nn.Module):
         if self.use_lstm:
             device = next(self.parameters()).device
             self.hidden_state = (
-                torch.zeros(1, batch_size, 128).to(device),
-                torch.zeros(1, batch_size, 128).to(device)
+                torch.zeros(1, batch_size, self.hidden_dim).to(device),
+                torch.zeros(1, batch_size, self.hidden_dim).to(device)
             )
     
-    def forward(
-        self, 
-        obs: torch.Tensor,
-        deterministic: bool = False
-    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor, torch.Tensor]:
-        """
-        前向传播
+    def encode(self, obs: torch.Tensor) -> torch.Tensor:
+        """Phase 1: 特征编码
         
         Args:
-            obs: 观测 [batch, obs_dim]
+            obs: 观测 [batch, obs_dim] 或 [batch, seq_len, obs_dim]
+            
+        Returns:
+            features: 编码特征 [batch, hidden_dim]
+        """
+        features = self.encoder(obs)
+        
+        # LSTM处理（仅当输入为3D序列时激活）
+        if self.use_lstm and len(obs.shape) == 3:
+            features, self.hidden_state = self.lstm(features, self.hidden_state)
+            features = features[:, -1, :]  # 取最后时刻
+        
+        return features
+    
+    def get_intent(self, features: torch.Tensor) -> torch.Tensor:
+        """Phase 1: 生成意图向量（发送给对方智能体）
+        
+        Args:
+            features: 编码特征 [batch, hidden_dim]
+            
+        Returns:
+            intent: 意图向量 [batch, intent_dim]
+        """
+        return self.intent_head(features)
+    
+    def get_action(
+        self,
+        features: torch.Tensor,
+        peer_intent: Optional[torch.Tensor] = None,
+        deterministic: bool = False
+    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor, torch.Tensor]:
+        """Phase 2: 基于自身特征和对方意图生成动作
+        
+        Args:
+            features: 自身编码特征 [batch, hidden_dim]
+            peer_intent: 对方智能体的意图向量 [batch, intent_dim]，None 时用零向量
             deterministic: 是否确定性输出
             
         Returns:
@@ -92,13 +137,12 @@ class DiagnosticNetwork(nn.Module):
             log_probs: 动作对数概率
             value: 状态价值估计
         """
-        # 特征编码
-        features = self.encoder(obs)
-        
-        # LSTM处理
-        if self.use_lstm and len(obs.shape) == 3:
-            features, self.hidden_state = self.lstm(features, self.hidden_state)
-            features = features[:, -1, :]  # 取最后时刻
+        # 融合对方意图
+        if peer_intent is not None:
+            features = self.intent_fusion(torch.cat([features, peer_intent], dim=-1))
+        else:
+            zero_intent = torch.zeros(features.shape[0], self.intent_dim, device=features.device)
+            features = self.intent_fusion(torch.cat([features, zero_intent], dim=-1))
         
         # 故障分类
         fault_logits = self.fault_type_head(features)
@@ -117,10 +161,9 @@ class DiagnosticNetwork(nn.Module):
         sev_beta = F.softplus(self.severity_beta(features)) + 1
         
         if deterministic:
-            severity = sev_alpha / (sev_alpha + sev_beta)  # Beta分布均值
+            severity = sev_alpha / (sev_alpha + sev_beta)
             sev_log_prob = torch.zeros_like(severity)
         else:
-            # 使用重参数化近似
             severity = torch.distributions.Beta(sev_alpha, sev_beta).rsample()
             sev_log_prob = torch.distributions.Beta(sev_alpha, sev_beta).log_prob(severity.clamp(1e-6, 1-1e-6))
         
@@ -152,13 +195,31 @@ class DiagnosticNetwork(nn.Module):
         
         return actions, log_probs, value
     
+    def forward(
+        self, 
+        obs: torch.Tensor,
+        deterministic: bool = False,
+        peer_intent: Optional[torch.Tensor] = None
+    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor, torch.Tensor]:
+        """前向传播（兼容旧接口，内部委托两阶段方法）"""
+        features = self.encode(obs)
+        return self.get_action(features, peer_intent, deterministic)
+    
     def evaluate_actions(
         self,
         obs: torch.Tensor,
-        actions: Dict[str, torch.Tensor]
+        actions: Dict[str, torch.Tensor],
+        peer_intent: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """评估给定动作的概率和价值"""
+        """评估给定动作的概率和价值（支持意图融合）"""
         features = self.encoder(obs)
+        
+        # 意图融合
+        if peer_intent is not None:
+            features = self.intent_fusion(torch.cat([features, peer_intent], dim=-1))
+        else:
+            zero_intent = torch.zeros(features.shape[0], self.intent_dim, device=features.device)
+            features = self.intent_fusion(torch.cat([features, zero_intent], dim=-1))
         
         # 故障分类
         fault_logits = self.fault_type_head(features)
@@ -192,10 +253,14 @@ class DiagnosticNetwork(nn.Module):
 
 class ControlNetwork(nn.Module):
     """
-    控制智能体网络
+    控制智能体网络（并行双向决策架构）
     
-    输入: 观测特征 + 诊断结果
-    输出: 正时补偿(连续) + 燃油调整(连续) + 保护级别(离散)
+    输入: 观测特征 + 诊断结果 [+ 对方意图向量]
+    输出: 正时补偿(连续) + 燃油调整(连续) + 保护级别(离散) + 通信消息
+    
+    支持两阶段前向传播：
+        Phase 1: encode(obs) → features → get_intent() → intent 向量
+        Phase 2: get_action(features, peer_intent) → actions + msg_ctrl
     """
     
     def __init__(
@@ -205,7 +270,10 @@ class ControlNetwork(nn.Module):
         fuel_range: Tuple[float, float] = (0.85, 1.15),
         n_protection_levels: int = 4,
         hidden_dim: int = 128,
-        use_internal_critic: bool = True
+        use_internal_critic: bool = True,
+        comm_dim: int = 8,
+        intent_dim: int = 16,
+        use_lstm: bool = False
     ):
         super().__init__()
         
@@ -214,6 +282,10 @@ class ControlNetwork(nn.Module):
         self.fuel_range = fuel_range
         self.n_protection_levels = n_protection_levels
         self.use_internal_critic = use_internal_critic
+        self.comm_dim = comm_dim
+        self.intent_dim = intent_dim
+        self.hidden_dim = hidden_dim
+        self.use_lstm = use_lstm
         
         # 特征编码器
         self.encoder = nn.Sequential(
@@ -222,6 +294,28 @@ class ControlNetwork(nn.Module):
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU()
         )
+        
+        # 可选LSTM用于时序建模（变工况、渐进故障场景）
+        if use_lstm:
+            self.lstm = nn.LSTM(hidden_dim, hidden_dim, batch_first=True)
+            self.hidden_state = None
+        
+        # 特征编码器
+        self.encoder = nn.Sequential(
+            nn.Linear(obs_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU()
+        )
+        
+        # 意图融合层（接收对方 intent 并与自身特征融合）
+        self.intent_fusion = nn.Sequential(
+            nn.Linear(hidden_dim + intent_dim, hidden_dim),
+            nn.ReLU()
+        )
+        
+        # 意图生成头（输出给对方的意图向量）
+        self.intent_head = nn.Linear(hidden_dim, intent_dim)
         
         # Actor头 - 正时补偿（高斯分布）
         self.timing_mean = nn.Linear(hidden_dim, 1)
@@ -234,19 +328,78 @@ class ControlNetwork(nn.Module):
         # Actor头 - 保护级别（分类）
         self.protection_head = nn.Linear(hidden_dim, n_protection_levels)
         
+        # 通信消息头（ctrl→diag 通信向量）
+        self.msg_head = nn.Sequential(
+            nn.Linear(hidden_dim, comm_dim),
+            nn.Tanh()  # 限制消息幅值在 [-1, 1]
+        )
+        
         # Critic头（可选）
         if use_internal_critic:
             self.critic = nn.Linear(hidden_dim, 1)
         else:
             self.critic = None
     
-    def forward(
+    def encode(self, obs: torch.Tensor) -> torch.Tensor:
+        """Phase 1: 特征编码
+        
+        Args:
+            obs: 观测 [batch, obs_dim] 或 [batch, seq_len, obs_dim]
+            
+        Returns:
+            features: 编码特征 [batch, hidden_dim]
+        """
+        features = self.encoder(obs)
+        
+        # LSTM处理（仅当输入为3D序列时激活）
+        if self.use_lstm and len(obs.shape) == 3:
+            features, self.hidden_state = self.lstm(features, self.hidden_state)
+            features = features[:, -1, :]  # 取最后时刻
+        
+        return features
+    
+    def reset_hidden(self, batch_size: int = 1):
+        """重置LSTM隳状态"""
+        if self.use_lstm:
+            device = next(self.parameters()).device
+            self.hidden_state = (
+                torch.zeros(1, batch_size, self.hidden_dim).to(device),
+                torch.zeros(1, batch_size, self.hidden_dim).to(device)
+            )
+    
+    def get_intent(self, features: torch.Tensor) -> torch.Tensor:
+        """Phase 1: 生成意图向量（发送给对方智能体）
+        
+        Args:
+            features: 编码特征 [batch, hidden_dim]
+            
+        Returns:
+            intent: 意图向量 [batch, intent_dim]
+        """
+        return self.intent_head(features)
+    
+    def get_action(
         self,
-        obs: torch.Tensor,
+        features: torch.Tensor,
+        peer_intent: Optional[torch.Tensor] = None,
         deterministic: bool = False
     ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor, torch.Tensor]:
-        """前向传播"""
-        features = self.encoder(obs)
+        """Phase 2: 基于自身特征和对方意图生成动作
+        
+        Args:
+            features: 自身编码特征 [batch, hidden_dim]
+            peer_intent: 对方智能体的意图向量 [batch, intent_dim]，None 时用零向量
+            deterministic: 是否确定性输出
+            
+        Returns:
+            actions, log_probs, msg_ctrl
+        """
+        # 融合对方意图
+        if peer_intent is not None:
+            features = self.intent_fusion(torch.cat([features, peer_intent], dim=-1))
+        else:
+            zero_intent = torch.zeros(features.shape[0], self.intent_dim, device=features.device)
+            features = self.intent_fusion(torch.cat([features, zero_intent], dim=-1))
         
         # 正时补偿
         timing_mean = self.timing_mean(features)
@@ -290,10 +443,14 @@ class ControlNetwork(nn.Module):
             protection = protection_dist.sample()
             protection_log_prob = protection_dist.log_prob(protection).unsqueeze(-1)
         
+        # 通信消息（ctrl→diag）
+        msg_ctrl = self.msg_head(features)
+        
         actions = {
             'timing_offset': timing_offset,
             'fuel_adj': fuel_adj,
-            'protection_level': protection
+            'protection_level': protection,
+            'msg_ctrl': msg_ctrl
         }
         
         log_probs = timing_log_prob + fuel_log_prob + protection_log_prob
@@ -305,13 +462,31 @@ class ControlNetwork(nn.Module):
         
         return actions, log_probs.sum(dim=-1, keepdim=True), value
     
+    def forward(
+        self,
+        obs: torch.Tensor,
+        deterministic: bool = False,
+        peer_intent: Optional[torch.Tensor] = None
+    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor, torch.Tensor]:
+        """前向传播（兼容旧接口，内部委托两阶段方法）"""
+        features = self.encode(obs)
+        return self.get_action(features, peer_intent, deterministic)
+    
     def evaluate_actions(
         self,
         obs: torch.Tensor,
-        actions: Dict[str, torch.Tensor]
+        actions: Dict[str, torch.Tensor],
+        peer_intent: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """评估动作"""
+        """评估动作（支持意图融合）"""
         features = self.encoder(obs)
+        
+        # 意图融合
+        if peer_intent is not None:
+            features = self.intent_fusion(torch.cat([features, peer_intent], dim=-1))
+        else:
+            zero_intent = torch.zeros(features.shape[0], self.intent_dim, device=features.device)
+            features = self.intent_fusion(torch.cat([features, zero_intent], dim=-1))
         
         # 正时
         timing_mean = self.timing_mean(features)
