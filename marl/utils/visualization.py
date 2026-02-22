@@ -1,288 +1,201 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
-MARL训练可视化模块
-==================
-包含训练过程、结果和评估的可视化功能
+MARL 可视化兼容层
+=================
+此模块保留原有类接口（TrainingVisualizer / EvaluationVisualizer /
+NetworkArchitectureVisualizer），内部委托至学术风格纯函数
+visualization.marl_plots。
+
+如需新功能，请直接调用 visualization.marl_plots 中的纯函数；
+此处保留只是为了不破坏 experiments/ 中的现有导入。
+
+Author: CDC Project
+Date: 2026-02-22
 """
 
+# 标准库
+import warnings
+from typing import Dict, List, Optional, Tuple
+
+# 第三方库
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.gridspec import GridSpec
-from typing import Dict, List, Optional, Tuple
-from pathlib import Path
-import json
 
-# 设置中文字体
-plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
-plt.rcParams['axes.unicode_minus'] = False
+# 纯函数实现（学术风格）
+from visualization.marl_plots import (
+    plot_training_curves        as _plot_training_curves,
+    plot_reward_distribution    as _plot_reward_distribution,
+    plot_confusion_matrix       as _plot_confusion_matrix,
+    plot_detection_delay        as _plot_detection_delay,
+    plot_control_response       as _plot_control_response,
+    plot_method_comparison      as _plot_method_comparison,
+    plot_dual_agent_architecture as _plot_dual_agent_architecture,
+)
 
+__all__ = [
+    "TrainingVisualizer",
+    "EvaluationVisualizer",
+    "NetworkArchitectureVisualizer",
+]
+
+# ============================================================================
+# 模块级弃用警告
+# ============================================================================
+warnings.warn(
+    "marl.utils.visualization 已弃用，请直接使用 visualization.marl_plots 中的纯函数。"
+    "此兼容层将在未来版本中移除。",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+
+# ============================================================================
+# TrainingVisualizer — 有状态包装器
+# ============================================================================
 
 class TrainingVisualizer:
     """
-    训练过程可视化器
-    
-    功能：
-    1. 实时训练曲线
-    2. 奖励分布
-    3. 损失曲线
-    4. 智能体行为分析
+    训练过程可视化器（兼容层）
+
+    保持原有接口：update(metrics) + plot_training_curves()。
+    绘图实现已委托至 visualization.marl_plots.plot_training_curves。
+
+    Examples::
+
+        vis = TrainingVisualizer()
+        for episode in range(1000):
+            metrics = trainer.step()
+            vis.update(metrics)
+        vis.plot_training_curves()
     """
-    
-    def __init__(self, save_dir: str = './visualization_output/marl'):
-        self.save_dir = Path(save_dir)
-        self.save_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 训练历史
-        self.history = {
-            'episodes': [],
-            'reward_diag': [],
-            'reward_ctrl': [],
-            'reward_total': [],
-            'loss_diag_policy': [],
-            'loss_diag_value': [],
-            'loss_ctrl_policy': [],
-            'loss_ctrl_value': [],
-            'entropy_diag': [],
-            'entropy_ctrl': [],
-            'diag_accuracy': [],
-            'ctrl_performance': [],
-            'episode_length': []
+
+    def __init__(self, save_dir: str = "./visualization_output/training"):
+        """
+        Args:
+            save_dir: 已废弃参数（保留以维持 API 兼容），
+                      保存路径由 save_figure 统一管理。
+        """
+        if save_dir != "./visualization_output/training":
+            warnings.warn(
+                "save_dir 参数已废弃，保存路径由 save_figure() 统一管理。",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        # 训练历史（供 update() 积累数据）
+        self.history: Dict[str, List] = {
+            "episodes": [],
+            "reward_diag": [],
+            "reward_ctrl": [],
+            "reward_total": [],
+            "loss_diag_policy": [],
+            "loss_diag_value": [],
+            "loss_ctrl_policy": [],
+            "loss_ctrl_value": [],
+            "entropy_diag": [],
+            "entropy_ctrl": [],
+            "diag_accuracy": [],
+            "ctrl_performance": [],
+            "episode_length": [],
         }
-    
-    def update(self, metrics: Dict):
-        """更新训练指标"""
+
+    def update(self, metrics: Dict) -> None:
+        """
+        将本轮训练指标追加到历史记录。
+
+        Args:
+            metrics: 字典，键名与 self.history 中的键对应。
+        """
         for key, value in metrics.items():
             if key in self.history:
                 self.history[key].append(value)
-    
+
     def plot_training_curves(self, figsize: Tuple[int, int] = (16, 12)) -> plt.Figure:
         """
-        绘制训练曲线（综合视图）
-        
-        包含：奖励曲线、损失曲线、熵曲线、性能指标
-        """
-        fig = plt.figure(figsize=figsize)
-        gs = GridSpec(3, 2, figure=fig, hspace=0.3, wspace=0.25)
-        
-        episodes = self.history['episodes'] if self.history['episodes'] else list(range(len(self.history['reward_diag'])))
-        
-        # (a) 奖励曲线
-        ax1 = fig.add_subplot(gs[0, 0])
-        if self.history['reward_diag']:
-            ax1.plot(episodes, self.history['reward_diag'], 'b-', alpha=0.3, label='诊断奖励(原始)')
-            smooth_data = self._smooth(self.history['reward_diag'])
-            smooth_x = episodes[len(episodes)-len(smooth_data):]
-            ax1.plot(smooth_x, smooth_data, 'b-', linewidth=2, label='诊断奖励(平滑)')
-        if self.history['reward_ctrl']:
-            ax1.plot(episodes, self.history['reward_ctrl'], 'r-', alpha=0.3, label='控制奖励(原始)')
-            smooth_data = self._smooth(self.history['reward_ctrl'])
-            smooth_x = episodes[len(episodes)-len(smooth_data):]
-            ax1.plot(smooth_x, smooth_data, 'r-', linewidth=2, label='控制奖励(平滑)')
-        ax1.set_xlabel('训练轮次')
-        ax1.set_ylabel('奖励')
-        ax1.set_title('(a) 双智能体奖励曲线')
-        ax1.legend(loc='lower right')
-        ax1.grid(True, alpha=0.3)
-        
-        # (b) 策略损失
-        ax2 = fig.add_subplot(gs[0, 1])
-        if self.history['loss_diag_policy']:
-            ax2.plot(episodes, self.history['loss_diag_policy'], 'b-', label='诊断策略损失')
-        if self.history['loss_ctrl_policy']:
-            ax2.plot(episodes, self.history['loss_ctrl_policy'], 'r-', label='控制策略损失')
-        ax2.set_xlabel('训练轮次')
-        ax2.set_ylabel('策略损失')
-        ax2.set_title('(b) 策略损失曲线')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
-        
-        # (c) 价值损失
-        ax3 = fig.add_subplot(gs[1, 0])
-        if self.history['loss_diag_value']:
-            ax3.plot(episodes, self.history['loss_diag_value'], 'b-', label='诊断价值损失')
-        if self.history['loss_ctrl_value']:
-            ax3.plot(episodes, self.history['loss_ctrl_value'], 'r-', label='控制价值损失')
-        ax3.set_xlabel('训练轮次')
-        ax3.set_ylabel('价值损失')
-        ax3.set_title('(c) 价值损失曲线')
-        ax3.legend()
-        ax3.grid(True, alpha=0.3)
-        
-        # (d) 熵曲线
-        ax4 = fig.add_subplot(gs[1, 1])
-        if self.history['entropy_diag']:
-            ax4.plot(episodes, self.history['entropy_diag'], 'b-', label='诊断熵')
-        if self.history['entropy_ctrl']:
-            ax4.plot(episodes, self.history['entropy_ctrl'], 'r-', label='控制熵')
-        ax4.set_xlabel('训练轮次')
-        ax4.set_ylabel('策略熵')
-        ax4.set_title('(d) 策略熵曲线（探索程度）')
-        ax4.legend()
-        ax4.grid(True, alpha=0.3)
-        
-        # (e) 诊断准确率
-        ax5 = fig.add_subplot(gs[2, 0])
-        if self.history['diag_accuracy']:
-            ax5.plot(episodes, self.history['diag_accuracy'], 'g-', alpha=0.3)
-            smooth_data = self._smooth(self.history['diag_accuracy'])
-            smooth_x = episodes[len(episodes)-len(smooth_data):]
-            ax5.plot(smooth_x, smooth_data, 'g-', linewidth=2)
-            ax5.axhline(y=0.9, color='k', linestyle='--', alpha=0.5, label='目标准确率90%')
-        ax5.set_xlabel('训练轮次')
-        ax5.set_ylabel('准确率')
-        ax5.set_title('(e) 诊断准确率')
-        ax5.set_ylim([0, 1.05])
-        ax5.legend()
-        ax5.grid(True, alpha=0.3)
-        
-        # (f) 控制性能
-        ax6 = fig.add_subplot(gs[2, 1])
-        if self.history['ctrl_performance']:
-            ax6.plot(episodes, self.history['ctrl_performance'], 'm-', alpha=0.3)
-            smooth_data = self._smooth(self.history['ctrl_performance'])
-            smooth_x = episodes[len(episodes)-len(smooth_data):]
-            ax6.plot(smooth_x, smooth_data, 'm-', linewidth=2)
-        ax6.set_xlabel('训练轮次')
-        ax6.set_ylabel('性能维持率')
-        ax6.set_title('(f) 控制性能（Pmax维持率）')
-        ax6.set_ylim([0, 1.1])
-        ax6.grid(True, alpha=0.3)
-        
-        plt.suptitle('双智能体强化学习训练过程', fontsize=14, fontweight='bold')
-        
-        return fig
-    
-    def plot_reward_distribution(self, figsize: Tuple[int, int] = (12, 5)) -> plt.Figure:
-        """绘制奖励分布直方图"""
-        fig, axes = plt.subplots(1, 3, figsize=figsize)
-        
-        # 诊断奖励分布
-        if self.history['reward_diag']:
-            axes[0].hist(self.history['reward_diag'], bins=30, color='blue', alpha=0.7, edgecolor='black')
-            axes[0].axvline(np.mean(self.history['reward_diag']), color='red', linestyle='--', label=f'均值: {np.mean(self.history["reward_diag"]):.2f}')
-            axes[0].set_xlabel('奖励')
-            axes[0].set_ylabel('频次')
-            axes[0].set_title('诊断智能体奖励分布')
-            axes[0].legend()
-        
-        # 控制奖励分布
-        if self.history['reward_ctrl']:
-            axes[1].hist(self.history['reward_ctrl'], bins=30, color='red', alpha=0.7, edgecolor='black')
-            axes[1].axvline(np.mean(self.history['reward_ctrl']), color='blue', linestyle='--', label=f'均值: {np.mean(self.history["reward_ctrl"]):.2f}')
-            axes[1].set_xlabel('奖励')
-            axes[1].set_ylabel('频次')
-            axes[1].set_title('控制智能体奖励分布')
-            axes[1].legend()
-        
-        # 总奖励分布
-        if self.history['reward_total']:
-            axes[2].hist(self.history['reward_total'], bins=30, color='green', alpha=0.7, edgecolor='black')
-            axes[2].axvline(np.mean(self.history['reward_total']), color='purple', linestyle='--', label=f'均值: {np.mean(self.history["reward_total"]):.2f}')
-            axes[2].set_xlabel('奖励')
-            axes[2].set_ylabel('频次')
-            axes[2].set_title('总奖励分布')
-            axes[2].legend()
-        
-        plt.tight_layout()
-        return fig
-    
-    def _smooth(self, data: List, window: int = 20) -> np.ndarray:
-        """滑动平均平滑"""
-        if len(data) < window:
-            return np.array(data)
-        return np.convolve(data, np.ones(window)/window, mode='valid')
-    
-    def save_plot(self, fig: plt.Figure, name: str):
-        """保存图像"""
-        fig.savefig(self.save_dir / f'{name}.png', dpi=150, bbox_inches='tight')
-        fig.savefig(self.save_dir / f'{name}.pdf', bbox_inches='tight')
-        print(f"已保存: {self.save_dir / name}")
+        绘制训练曲线并保存至 visualization_output/training/。
 
+        Args:
+            figsize: 图形尺寸
+
+        Returns:
+            fig: matplotlib Figure 对象
+        """
+        return _plot_training_curves(self.history, figsize=figsize)
+
+    def plot_reward_distribution(self, figsize: Tuple[int, int] = (12, 5)) -> plt.Figure:
+        """
+        绘制奖励分布直方图并保存。
+
+        Args:
+            figsize: 图形尺寸
+
+        Returns:
+            fig: matplotlib Figure 对象
+        """
+        return _plot_reward_distribution(self.history, figsize=figsize)
+
+    def save_plot(self, name: str = "") -> None:
+        """已废弃：保存由 save_figure() 在绘图函数内自动处理。"""
+        warnings.warn(
+            "save_plot() 已废弃，图形在调用 plot_*() 时自动保存至 "
+            "visualization_output/training/。",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+
+# ============================================================================
+# EvaluationVisualizer — 无状态委托器
+# ============================================================================
 
 class EvaluationVisualizer:
-    """
-    训练效果评估可视化器
-    
-    功能：
-    1. 混淆矩阵
-    2. 故障检测延迟分析
-    3. 控制响应分析
-    4. 对比实验结果
-    """
-    
-    def __init__(self, save_dir: str = './visualization_output/marl'):
-        self.save_dir = Path(save_dir)
-        self.save_dir.mkdir(parents=True, exist_ok=True)
-    
+    """评估结果可视化器（兼容层），各方法无状态，直接委托至纯函数。"""
+
+    def __init__(self, save_dir: str = "./visualization_output/training"):
+        if save_dir != "./visualization_output/training":
+            warnings.warn(
+                "save_dir 参数已废弃，保存路径由 save_figure() 统一管理。",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
     def plot_confusion_matrix(
-        self, 
+        self,
         confusion_matrix: np.ndarray,
-        class_names: List[str] = ['健康', '正时故障', '泄漏故障', '燃油故障'],
-        figsize: Tuple[int, int] = (8, 6)
+        class_names: Optional[List[str]] = None,
+        figsize: Tuple[int, int] = (8, 6),
     ) -> plt.Figure:
-        """绘制诊断混淆矩阵"""
-        fig, ax = plt.subplots(figsize=figsize)
-        
-        im = ax.imshow(confusion_matrix, cmap='Blues')
-        
-        # 添加colorbar
-        cbar = ax.figure.colorbar(im, ax=ax)
-        cbar.ax.set_ylabel('样本数', rotation=-90, va="bottom")
-        
-        # 设置刻度
-        ax.set_xticks(np.arange(len(class_names)))
-        ax.set_yticks(np.arange(len(class_names)))
-        ax.set_xticklabels(class_names)
-        ax.set_yticklabels(class_names)
-        
-        # 旋转x轴标签
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
-        
-        # 添加数值标注
-        for i in range(len(class_names)):
-            for j in range(len(class_names)):
-                value = confusion_matrix[i, j]
-                text = ax.text(j, i, f'{value}',
-                              ha="center", va="center",
-                              color="white" if value > confusion_matrix.max()/2 else "black")
-        
-        ax.set_xlabel('预测类别')
-        ax.set_ylabel('真实类别')
-        ax.set_title('故障诊断混淆矩阵')
-        
-        plt.tight_layout()
-        return fig
-    
+        """
+        绘制故障分类混淆矩阵。
+
+        Args:
+            confusion_matrix: n×n 混淆矩阵（行=真实，列=预测）
+            class_names: 类别标签；默认 ['健康','正时故障','泄漏故障','燃油故障']
+            figsize: 图形尺寸
+
+        Returns:
+            fig: matplotlib Figure 对象
+        """
+        return _plot_confusion_matrix(confusion_matrix, class_names, figsize)
+
     def plot_detection_delay(
         self,
         delays: Dict[str, List[float]],
-        figsize: Tuple[int, int] = (10, 6)
+        figsize: Tuple[int, int] = (10, 6),
     ) -> plt.Figure:
-        """绘制故障检测延迟分析"""
-        fig, ax = plt.subplots(figsize=figsize)
-        
-        positions = list(range(len(delays)))
-        labels = list(delays.keys())
-        data = [delays[k] for k in labels]
-        
-        bp = ax.boxplot(data, positions=positions, patch_artist=True)
-        
-        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
-        for patch, color in zip(bp['boxes'], colors[:len(data)]):
-            patch.set_facecolor(color)
-            patch.set_alpha(0.7)
-        
-        ax.set_xticks(positions)
-        ax.set_xticklabels(labels)
-        ax.set_ylabel('检测延迟（循环数）')
-        ax.set_title('不同故障类型的检测延迟分布')
-        ax.axhline(y=5, color='red', linestyle='--', alpha=0.5, label='目标: <5 cycles')
-        ax.legend()
-        ax.grid(True, alpha=0.3, axis='y')
-        
-        plt.tight_layout()
-        return fig
-    
+        """
+        绘制故障检测延迟箱型图。
+
+        Args:
+            delays: {故障名称: [延迟(步数), ...]} 字典
+            figsize: 图形尺寸
+
+        Returns:
+            fig: matplotlib Figure 对象
+        """
+        return _plot_detection_delay(delays, figsize)
+
     def plot_control_response(
         self,
         time_steps: np.ndarray,
@@ -291,268 +204,76 @@ class EvaluationVisualizer:
         pmax_target: float,
         timing_offset: np.ndarray,
         fuel_adj: np.ndarray,
-        figsize: Tuple[int, int] = (14, 10)
+        figsize: Tuple[int, int] = (14, 10),
     ) -> plt.Figure:
-        """绘制控制响应分析"""
-        fig, axes = plt.subplots(4, 1, figsize=figsize, sharex=True)
-        
-        # (a) 故障严重程度
-        axes[0].fill_between(time_steps, 0, fault_severity, alpha=0.5, color='red', label='故障严重程度')
-        axes[0].set_ylabel('故障强度')
-        axes[0].set_title('(a) 故障注入')
-        axes[0].legend(loc='upper right')
-        axes[0].grid(True, alpha=0.3)
-        axes[0].set_ylim([0, 1])
-        
-        # (b) Pmax响应
-        axes[1].plot(time_steps, pmax_actual, 'b-', linewidth=2, label='实际Pmax')
-        axes[1].axhline(y=pmax_target, color='green', linestyle='--', label=f'目标Pmax={pmax_target}')
-        axes[1].fill_between(time_steps, pmax_target*0.95, pmax_target*1.05, alpha=0.2, color='green', label='±5%容差')
-        axes[1].set_ylabel('Pmax [bar]')
-        axes[1].set_title('(b) 性能维持效果')
-        axes[1].legend(loc='upper right')
-        axes[1].grid(True, alpha=0.3)
-        
-        # (c) 正时补偿
-        axes[2].plot(time_steps, timing_offset, 'purple', linewidth=2)
-        axes[2].axhline(y=0, color='gray', linestyle='-', alpha=0.5)
-        axes[2].set_ylabel('正时补偿 [deg]')
-        axes[2].set_title('(c) 控制智能体-正时调整')
-        axes[2].set_ylim([-6, 6])
-        axes[2].grid(True, alpha=0.3)
-        
-        # (d) 燃油调整
-        axes[3].plot(time_steps, fuel_adj, 'orange', linewidth=2)
-        axes[3].axhline(y=1.0, color='gray', linestyle='-', alpha=0.5)
-        axes[3].set_ylabel('燃油系数')
-        axes[3].set_xlabel('时间步')
-        axes[3].set_title('(d) 控制智能体-燃油调整')
-        axes[3].set_ylim([0.8, 1.2])
-        axes[3].grid(True, alpha=0.3)
-        
-        plt.suptitle('容错控制响应分析', fontsize=14, fontweight='bold')
-        plt.tight_layout()
-        return fig
-    
-    def plot_comparison(
+        """
+        绘制容错控制响应分析图（4 行子图）。
+
+        Args:
+            time_steps: 时间步数组
+            fault_severity: 故障严重程度 [0, 1]
+            pmax_actual: 实际 Pmax 数组 [bar]
+            pmax_target: 目标 Pmax 标量 [bar]
+            timing_offset: 正时补偿数组 [deg]
+            fuel_adj: 燃油调整系数数组
+            figsize: 图形尺寸
+
+        Returns:
+            fig: matplotlib Figure 对象
+        """
+        return _plot_control_response(
+            time_steps, fault_severity, pmax_actual,
+            pmax_target, timing_offset, fuel_adj, figsize,
+        )
+
+    def plot_method_comparison(
         self,
         methods: List[str],
         metrics: Dict[str, List[float]],
-        figsize: Tuple[int, int] = (12, 5)
+        figsize: Optional[Tuple[int, int]] = None,
     ) -> plt.Figure:
-        """绘制方法对比"""
-        fig, axes = plt.subplots(1, len(metrics), figsize=figsize)
-        
-        if len(metrics) == 1:
-            axes = [axes]
-        
-        x = np.arange(len(methods))
-        width = 0.6
-        colors = ['#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1c40f']
-        
-        for idx, (metric_name, values) in enumerate(metrics.items()):
-            bars = axes[idx].bar(x, values, width, color=colors[:len(methods)], edgecolor='black')
-            axes[idx].set_xticks(x)
-            axes[idx].set_xticklabels(methods, rotation=45, ha='right')
-            axes[idx].set_ylabel(metric_name)
-            axes[idx].set_title(metric_name)
-            axes[idx].grid(True, alpha=0.3, axis='y')
-            
-            # 添加数值标注
-            for bar, val in zip(bars, values):
-                axes[idx].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
-                              f'{val:.2f}', ha='center', va='bottom', fontsize=10)
-        
-        plt.suptitle('方法性能对比', fontsize=14, fontweight='bold')
-        plt.tight_layout()
-        return fig
+        """
+        绘制方法性能对比柱状图。
 
+        Args:
+            methods: 方法名称列表
+            metrics: {指标名称: [各方法数值]} 字典
+            figsize: 图形尺寸（默认自动）
+
+        Returns:
+            fig: matplotlib Figure 对象
+        """
+        return _plot_method_comparison(methods, metrics, figsize)
+
+
+# ============================================================================
+# NetworkArchitectureVisualizer — 无状态委托器
+# ============================================================================
 
 class NetworkArchitectureVisualizer:
     """
-    网络架构可视化
+    网络架构可视化器（兼容层）
+
+    委托至 visualization.marl_plots.plot_dual_agent_architecture，
+    保存至 visualization_output/modeling/。
     """
-    
-    @staticmethod
-    def plot_architecture(figsize: Tuple[int, int] = (16, 8)) -> plt.Figure:
-        """绘制双智能体网络架构图"""
-        fig, axes = plt.subplots(1, 2, figsize=figsize)
-        
-        # ===== 诊断智能体 =====
-        ax = axes[0]
-        ax.set_xlim(0, 10)
-        ax.set_ylim(0, 10)
-        ax.axis('off')
-        ax.set_title('诊断智能体网络架构', fontsize=14, fontweight='bold')
-        
-        # 输入层
-        input_box = mpatches.FancyBboxPatch((0.5, 4), 2, 2, boxstyle="round,pad=0.1",
-                                            facecolor='#3498db', edgecolor='black', linewidth=2)
-        ax.add_patch(input_box)
-        ax.text(1.5, 5, '观测输入\n(含控制历史)', ha='center', va='center', fontsize=10, color='white')
-        
-        # 编码器
-        encoder_box = mpatches.FancyBboxPatch((3.5, 4), 2, 2, boxstyle="round,pad=0.1",
-                                              facecolor='#9b59b6', edgecolor='black', linewidth=2)
-        ax.add_patch(encoder_box)
-        ax.text(4.5, 5, 'MLP编码器\n64-64', ha='center', va='center', fontsize=10, color='white')
-        
-        # 输出头
-        heads = [
-            ('故障分类\nSoftmax(4)', '#e74c3c', 8),
-            ('严重程度\nBeta分布', '#2ecc71', 6),
-            ('置信度\nBeta分布', '#f1c40f', 4),
-            ('Critic\nV(s)', '#1abc9c', 2)
-        ]
-        
-        for name, color, y in heads:
-            head_box = mpatches.FancyBboxPatch((7, y-0.5), 2.5, 1.2, boxstyle="round,pad=0.05",
-                                               facecolor=color, edgecolor='black', linewidth=1.5)
-            ax.add_patch(head_box)
-            ax.text(8.25, y+0.1, name, ha='center', va='center', fontsize=9, color='white')
-        
-        # 连接箭头
-        ax.annotate('', xy=(3.4, 5), xytext=(2.6, 5),
-                   arrowprops=dict(arrowstyle='->', lw=2))
-        for y in [8, 6, 4, 2]:
-            ax.annotate('', xy=(6.9, y+0.1), xytext=(5.6, 5),
-                       arrowprops=dict(arrowstyle='->', lw=1.5, connectionstyle="arc3,rad=0.1"))
-        
-        # ===== 控制智能体 =====
-        ax = axes[1]
-        ax.set_xlim(0, 10)
-        ax.set_ylim(0, 10)
-        ax.axis('off')
-        ax.set_title('控制智能体网络架构', fontsize=14, fontweight='bold')
-        
-        # 输入层
-        input_box = mpatches.FancyBboxPatch((0.5, 4), 2, 2, boxstyle="round,pad=0.1",
-                                            facecolor='#3498db', edgecolor='black', linewidth=2)
-        ax.add_patch(input_box)
-        ax.text(1.5, 5, '观测输入\n(含诊断结果)', ha='center', va='center', fontsize=10, color='white')
-        
-        # 编码器
-        encoder_box = mpatches.FancyBboxPatch((3.5, 4), 2, 2, boxstyle="round,pad=0.1",
-                                              facecolor='#9b59b6', edgecolor='black', linewidth=2)
-        ax.add_patch(encoder_box)
-        ax.text(4.5, 5, 'MLP编码器\n64-64', ha='center', va='center', fontsize=10, color='white')
-        
-        # 输出头
-        heads = [
-            ('正时补偿\n高斯[-5,5]°', '#e74c3c', 8),
-            ('燃油调整\n高斯[0.85,1.15]', '#2ecc71', 6),
-            ('保护级别\nSoftmax(4)', '#f1c40f', 4),
-            ('Critic\nV(s)', '#1abc9c', 2)
-        ]
-        
-        for name, color, y in heads:
-            head_box = mpatches.FancyBboxPatch((7, y-0.5), 2.5, 1.2, boxstyle="round,pad=0.05",
-                                               facecolor=color, edgecolor='black', linewidth=1.5)
-            ax.add_patch(head_box)
-            ax.text(8.25, y+0.1, name, ha='center', va='center', fontsize=9, color='white')
-        
-        # 连接箭头
-        ax.annotate('', xy=(3.4, 5), xytext=(2.6, 5),
-                   arrowprops=dict(arrowstyle='->', lw=2))
-        for y in [8, 6, 4, 2]:
-            ax.annotate('', xy=(6.9, y+0.1), xytext=(5.6, 5),
-                       arrowprops=dict(arrowstyle='->', lw=1.5, connectionstyle="arc3,rad=0.1"))
-        
-        plt.tight_layout()
-        return fig
 
+    def __init__(self, save_dir: str = "./visualization_output/modeling"):
+        if save_dir != "./visualization_output/modeling":
+            warnings.warn(
+                "save_dir 参数已废弃，保存路径由 save_figure() 统一管理。",
+                DeprecationWarning,
+                stacklevel=2,
+            )
 
-def demo_visualizations():
-    """
-    演示可视化功能（使用模拟数据）
-    """
-    print("生成演示可视化...")
-    
-    # 创建模拟训练数据
-    n_episodes = 200
-    np.random.seed(42)
-    
-    # 训练可视化
-    trainer_viz = TrainingVisualizer()
-    
-    for ep in range(n_episodes):
-        progress = ep / n_episodes
-        trainer_viz.update({
-            'episodes': ep,
-            'reward_diag': -5 + 15 * progress + np.random.randn() * 2,
-            'reward_ctrl': -3 + 10 * progress + np.random.randn() * 1.5,
-            'reward_total': -8 + 25 * progress + np.random.randn() * 3,
-            'loss_diag_policy': 0.5 - 0.3 * progress + np.random.rand() * 0.1,
-            'loss_diag_value': 1.0 - 0.5 * progress + np.random.rand() * 0.2,
-            'loss_ctrl_policy': 0.4 - 0.25 * progress + np.random.rand() * 0.1,
-            'loss_ctrl_value': 0.8 - 0.4 * progress + np.random.rand() * 0.15,
-            'entropy_diag': 1.5 - 0.8 * progress + np.random.rand() * 0.1,
-            'entropy_ctrl': 1.2 - 0.6 * progress + np.random.rand() * 0.1,
-            'diag_accuracy': 0.5 + 0.4 * progress + np.random.rand() * 0.05,
-            'ctrl_performance': 0.6 + 0.35 * progress + np.random.rand() * 0.05,
-            'episode_length': 150 + int(50 * progress) + np.random.randint(-20, 20)
-        })
-    
-    # 绘制训练曲线
-    fig1 = trainer_viz.plot_training_curves()
-    trainer_viz.save_plot(fig1, 'training_curves')
-    
-    fig2 = trainer_viz.plot_reward_distribution()
-    trainer_viz.save_plot(fig2, 'reward_distribution')
-    
-    # 评估可视化
-    eval_viz = EvaluationVisualizer()
-    
-    # 混淆矩阵
-    cm = np.array([
-        [95, 2, 2, 1],
-        [3, 88, 5, 4],
-        [2, 4, 90, 4],
-        [1, 3, 4, 92]
-    ])
-    fig3 = eval_viz.plot_confusion_matrix(cm)
-    eval_viz.save_dir = trainer_viz.save_dir
-    fig3.savefig(trainer_viz.save_dir / 'confusion_matrix.png', dpi=150, bbox_inches='tight')
-    
-    # 检测延迟
-    delays = {
-        '正时故障': np.random.exponential(2, 50) + 1,
-        '泄漏故障': np.random.exponential(3, 50) + 1,
-        '燃油故障': np.random.exponential(2.5, 50) + 1
-    }
-    fig4 = eval_viz.plot_detection_delay(delays)
-    fig4.savefig(trainer_viz.save_dir / 'detection_delay.png', dpi=150, bbox_inches='tight')
-    
-    # 控制响应
-    t = np.arange(100)
-    fault = np.zeros(100)
-    fault[30:] = np.minimum((t[30:] - 30) * 0.02, 0.5)
-    pmax = 150 - fault * 20 + np.random.randn(100) * 2
-    timing = np.zeros(100)
-    timing[35:] = fault[35:] * 3 + np.random.randn(65) * 0.3
-    fuel = np.ones(100)
-    fuel[35:] = 1 + fault[35:] * 0.1 + np.random.randn(65) * 0.02
-    
-    fig5 = eval_viz.plot_control_response(t, fault, pmax, 150, timing, fuel)
-    fig5.savefig(trainer_viz.save_dir / 'control_response.png', dpi=150, bbox_inches='tight')
-    
-    # 方法对比
-    methods = ['无控制', 'PID', '单智能体RL', '双智能体MARL']
-    metrics = {
-        '诊断准确率': [0.65, 0.72, 0.85, 0.93],
-        '性能维持率': [0.70, 0.82, 0.88, 0.95],
-        '检测延迟': [8.5, 6.2, 4.1, 2.3]
-    }
-    fig6 = eval_viz.plot_comparison(methods, metrics)
-    fig6.savefig(trainer_viz.save_dir / 'method_comparison.png', dpi=150, bbox_inches='tight')
-    
-    # 网络架构
-    fig7 = NetworkArchitectureVisualizer.plot_architecture()
-    fig7.savefig(trainer_viz.save_dir / 'network_architecture.png', dpi=150, bbox_inches='tight')
-    
-    print(f"所有可视化已保存到: {trainer_viz.save_dir}")
-    plt.show()
+    def plot_architecture(self, figsize: Tuple[int, int] = (16, 8)) -> plt.Figure:
+        """
+        绘制双智能体网络架构示意图。
 
+        Args:
+            figsize: 图形尺寸
 
-if __name__ == '__main__':
-    demo_visualizations()
+        Returns:
+            fig: matplotlib Figure 对象（保存至 modeling 类别）
+        """
+        return _plot_dual_agent_architecture(figsize)

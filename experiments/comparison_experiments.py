@@ -30,7 +30,7 @@ class ExperimentConfig:
     difficulty: float = 0.5
     enable_variable_condition: bool = True
     device: str = 'cpu'
-    save_dir: str = './experiment_results'
+    save_dir: str = './experiments/outputs'
 
 
 @dataclass
@@ -184,7 +184,7 @@ class PIDControlBaseline(BaselineMethod):
         self.pmax_target = 150.0
     
     @classmethod
-    def load_tuned_params(cls, params_path: str = './pid_tuning_results/best_params.json'):
+    def load_tuned_params(cls, params_path: str = './experiments/outputs/pid_tuning_results/best_params.json'):
         """
         从调优结果加载最优参数
         

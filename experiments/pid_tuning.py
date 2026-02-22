@@ -39,7 +39,7 @@ class PIDTuningConfig:
     target_pmax: float = 150.0
     
     # 保存路径
-    save_dir: str = './pid_tuning_results'
+    save_dir: str = './experiments/outputs/pid_tuning_results'
 
 
 class PIDController:

@@ -11,22 +11,18 @@ CDC/
 │   ├── combustion.py          #   双 Wiebe 燃烧放热
 │   ├── heat_transfer.py       #   Woschni 缸内传热
 │   ├── thermodynamics.py      #   热力学微分方程求解
-│   ├── engine_model.py        #   MarineEngine0D 总入口
-│   └── config.py              #   ENGINE_CONFIG
+│   └── engine_model.py        #   MarineEngine0D 总入口
 │
 ├── calibration/               # 三阶段分步解耦校准
 │   ├── calibrator.py          #   EngineCalibrator
 │   └── data_loader.py         #   CalibrationDataLoader / VisualizationDataLoader
 │
 ├── marl/                      # 双智能体强化学习
-│   ├── env.py                 #   桥接模块（→ multi_agent.env）
+│   ├── env/                   #   多智能体环境（EngineEnv / FaultInjector / OperatingScheduler）
 │   ├── agents/                #   DiagnosticAgent / ControlAgent
 │   ├── networks/              #   PINN-KAN / Actor-Critic / SharedCritic
 │   ├── training/              #   MAPPO Trainer / ReplayBuffer
-│   └── utils/                 #   归一化、训练可视化
-│
-├── multi_agent/               # 多智能体环境（PEP 8 命名）
-│   └── env/                   #   EngineEnv / FaultInjector / OperatingScheduler
+│   └── utils/                 #   归一化、训练可视化（兼容层）
 │
 ├── config/                    # 全局配置（dataclass 集中管理）
 │   ├── global_config.py       #   所有 *Config 类 & 单例
@@ -37,6 +33,7 @@ CDC/
 │   ├── preprocessing_plots.py #   数据预处理可视化
 │   ├── calibration_plots.py   #   校准结果可视化（仅绘图函数）
 │   ├── calibration_data_io.py #   校准数据加载（load_*）
+│   ├── marl_plots.py          #   MARL 双智能体可视化（学术风格纯函数）
 │   └── modeling/              #   建模可视化子包
 │       ├── framework_plots.py
 │       ├── geometry_plots.py
@@ -56,11 +53,13 @@ CDC/
 │   ├── generate_mock_calibration_data.py
 │   └── generate_sensitivity_heatmap.py
 │
-├── experiments/               # 实验 & 训练脚本
+├── experiments/               # 实验 & 训练脚本 + 产物
 │   ├── train_marl.py
 │   ├── train_advanced.py
 │   ├── comparison_experiments.py
-│   └── pid_tuning.py
+│   ├── pid_tuning.py
+│   ├── checkpoints/           #   模型检查点 (.pt)
+│   └── outputs/               #   实验结果 & PID 调优
 │
 ├── data/                      # 数据目录
 │   ├── raw/                   #   原始实验数据
@@ -70,9 +69,9 @@ CDC/
 ├── visualization_output/      # 图片输出（按 category 分子目录）
 │   ├── preprocessing/
 │   ├── calibration/
-│   └── modeling/
+│   ├── modeling/
+│   └── training/
 │
-├── checkpoints/               # 模型检查点 (.pt)
 ├── docs/                      # 项目文档
 └── .github/
     └── copilot-instructions.md
@@ -80,13 +79,17 @@ CDC/
 
 ### 关键设计决策
 
-| 决策                      | 说明                                                                |
-| ------------------------- | ------------------------------------------------------------------- |
-| `visualization/modeling/` | 原 `modeling_plots.py`（1500+ 行）拆分为 9 个职责单一的子模块       |
-| `visualization/style.py`  | 公共学术样式常量，避免各 `*_plots.py` 重复定义                      |
-| `calibration_data_io.py`  | 数据加载与绘图解耦，`calibration_plots.py` 只含纯绘图函数           |
-| `marl/env.py`             | 桥接模块，使 `from marl.env import EngineEnv` 透传到 `multi_agent/` |
-| `scripts/` 入口           | 所有可执行脚本集中在 `scripts/`，根目录保持干净                     |
+| 决策                          | 说明                                                                            |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `visualization/modeling/`     | 原 `modeling_plots.py`（1500+ 行）拆分为 9 个职责单一的子模块                   |
+| `visualization/style.py`      | 公共学术样式常量，避免各 `*_plots.py` 重复定义                                  |
+| `calibration_data_io.py`      | 数据加载与绘图解耦，`calibration_plots.py` 只含纯绘图函数                       |
+| `visualization/marl_plots.py` | MARL 双智能体学术风格纯函数；`marl/utils/visualization.py` 保留兼容层（已弃用） |
+| `marl/env/`                   | 原 `multi_agent/env/` 完全合并；`marl/env.py` 桥接文件已删除                    |
+| `scripts/` 入口               | 所有可执行脚本集中在 `scripts/`，根目录保持干净                                 |
+| `engine/config.py` 已删除     | 纯兼容层，`EngineConfig` 统一从 `config` 导入                                   |
+| `experiments/` 统一管理       | `checkpoints/`、`experiment_results/`、`pid_tuning_results/` 合并至子目录       |
+| `visualization/__init__.py`   | 惰性导入，避免 `import visualization` 触发 matplotlib 初始化                    |
 
 ## 文件头部模板
 
@@ -121,7 +124,7 @@ import matplotlib.pyplot as plt
 
 # 本项目模块
 from config import PLOT_CONFIG, COLORS, PATH_CONFIG, setup_matplotlib_style, save_figure
-from engine.config import ENGINE_CONFIG
+from config import ENGINE_CONFIG
 ```
 
 ## 参数管理

@@ -39,8 +39,6 @@ class PathConfig:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'raw'))
     DATA_CALIBRATION_DIR: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'calibration'))
-    DATA_TRAINING_DIR: str = field(default_factory=lambda: os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'training'))
     DATA_SIMULATION_DIR: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'simulation'))
     
@@ -60,13 +58,21 @@ class PathConfig:
     VIS_MODELING_DIR: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'visualization_output', 'modeling'))
     
-    # 模型检查点目录
-    CHECKPOINTS_DIR: str = field(default_factory=lambda: os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'checkpoints'))
+    # 实验目录
+    EXPERIMENTS_DIR: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'experiments'))
     
-    # 实验结果目录
+    # 模型检查点目录 → experiments/checkpoints/
+    CHECKPOINTS_DIR: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'experiments', 'checkpoints'))
+    
+    # 实验结果目录 → experiments/outputs/
     EXPERIMENT_RESULTS_DIR: str = field(default_factory=lambda: os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'experiment_results'))
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'experiments', 'outputs'))
+    
+    # PID 调优结果目录 → experiments/outputs/pid_tuning_results/
+    PID_TUNING_RESULTS_DIR: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'experiments', 'outputs', 'pid_tuning_results'))
     
     def ensure_dirs(self):
         """确保所有目录存在"""
@@ -74,7 +80,6 @@ class PathConfig:
             self.DATA_DIR,
             self.DATA_RAW_DIR,
             self.DATA_CALIBRATION_DIR,
-            self.DATA_TRAINING_DIR,
             self.DATA_SIMULATION_DIR,
             self.VISUALIZATION_OUTPUT_DIR,
             self.VIS_PREPROCESSING_DIR,
@@ -82,8 +87,10 @@ class PathConfig:
             self.VIS_TRAINING_DIR,
             self.VIS_EXPERIMENTS_DIR,
             self.VIS_MODELING_DIR,
+            self.EXPERIMENTS_DIR,
             self.CHECKPOINTS_DIR,
             self.EXPERIMENT_RESULTS_DIR,
+            self.PID_TUNING_RESULTS_DIR,
         ]
         for d in dirs:
             os.makedirs(d, exist_ok=True)

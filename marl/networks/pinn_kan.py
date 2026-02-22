@@ -14,10 +14,10 @@ from dataclasses import dataclass
 from .kan import KANNetwork, KANLayer
 
 # 导入共享配置模块，确保与发动机模型一致
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from engine.config import EngineConfig, DEFAULT_ENGINE_CONFIG
+from config import EngineConfig, ENGINE_CONFIG
+
+# 向后兼容别名
+DEFAULT_ENGINE_CONFIG = ENGINE_CONFIG
 
 
 @dataclass

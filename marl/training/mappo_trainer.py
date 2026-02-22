@@ -48,7 +48,7 @@ class MAPPOTrainer:
         batch_size: int = 64,
         buffer_size: int = 2048,
         device: str = 'cpu',
-        save_dir: str = './checkpoints'
+        save_dir: str = './experiments/checkpoints'
     ):
         """初始化训练器"""
         self.device = torch.device(device)

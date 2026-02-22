@@ -14,7 +14,7 @@ from .geometry import EngineGeometry
 from .combustion import DoublieWiebeCombustion
 from .heat_transfer import WoschniHeatTransfer
 from .thermodynamics import ThermodynamicSolver, ThermodynamicState
-from .config import EngineConfig, DEFAULT_ENGINE_CONFIG
+from config import EngineConfig, ENGINE_CONFIG
 
 
 @dataclass
@@ -65,7 +65,7 @@ class MarineEngine0D:
         """
         # 使用配置对象或默认值
         if config is None:
-            config = DEFAULT_ENGINE_CONFIG
+            config = ENGINE_CONFIG
         self.config = config
         
         # 允许单独参数覆盖配置（向后兼容）
