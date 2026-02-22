@@ -26,7 +26,7 @@ from visualization.marl_plots import plot_training_curves
 def parse_args():
     parser = argparse.ArgumentParser(description='PINN+KAN & TD-MPC2 训练')
     
-    parser.add_argument('--total-steps', type=int, default=100000)
+    parser.add_argument('--total-steps', type=int, default=100)
     parser.add_argument('--rollout-steps', type=int, default=1024)
     parser.add_argument('--batch-size', type=int, default=TRAINING_CONFIG.BATCH_SIZE)
     
