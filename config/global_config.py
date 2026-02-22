@@ -151,6 +151,19 @@ class PlotConfig:
         'purple': '#6F42C1',       # 紫色
         'teal': '#20C997',         # 青绿色
         'pink': '#E83E8C',         # 粉色
+        
+        # ── 顶刊级配色（Nature / Science / IEEE 风格）──
+        'nature_blue':    '#4C72B0',   # Nature 系蓝
+        'nature_red':     '#C44E52',   # Nature 系红
+        'nature_green':   '#55A868',   # Nature 系绿
+        'nature_purple':  '#8172B3',   # Nature 系紫
+        'nature_yellow':  '#CCB974',   # Nature 系黄
+        'nature_cyan':    '#64B5CD',   # Nature 系青
+        
+        # 高对比度双智能体专用
+        'agent_diag':  '#2B6CB0',     # 深蓝 - 诊断智能体
+        'agent_ctrl':  '#E53E3E',     # 深红 - 控制智能体
+        'agent_shared':'#805AD5',     # 紫色 - 共享模块
     })
     
     # 线条样式
@@ -399,10 +412,13 @@ def setup_matplotlib_style():
     # SVG设置 - 保持文字可编辑
     plt.rcParams['svg.fonttype'] = config.SVG_FONTTYPE
     
-    # 坐标轴设置
-    plt.rcParams['axes.linewidth'] = 1.0
+    # ── 顶刊级坐标轴设置 ──
+    plt.rcParams['axes.linewidth'] = 1.2
+    plt.rcParams['axes.edgecolor'] = '#333333'
     plt.rcParams['axes.grid'] = True
     plt.rcParams['axes.axisbelow'] = True
+    plt.rcParams['axes.spines.top'] = False
+    plt.rcParams['axes.spines.right'] = False
     
     # 刻度设置
     plt.rcParams['xtick.direction'] = config.TICK_DIRECTION
@@ -410,13 +426,17 @@ def setup_matplotlib_style():
     plt.rcParams['xtick.major.size'] = 5
     plt.rcParams['ytick.major.size'] = 5
     
-    # 网格设置
-    plt.rcParams['grid.alpha'] = config.GRID_ALPHA
-    plt.rcParams['grid.linestyle'] = config.GRID_LINESTYLE
+    # ── 顶刊级网格设置（极淡网格）──
+    plt.rcParams['grid.alpha'] = 0.15
+    plt.rcParams['grid.linestyle'] = '-'
+    plt.rcParams['grid.linewidth'] = 0.5
+    plt.rcParams['grid.color'] = '#CCCCCC'
     
-    # 图例设置
-    plt.rcParams['legend.framealpha'] = config.LEGEND_FRAMEALPHA
-    plt.rcParams['legend.edgecolor'] = 'gray'
+    # ── 顶刊级图例设置 ──
+    plt.rcParams['legend.framealpha'] = 0.9
+    plt.rcParams['legend.edgecolor'] = '#CCCCCC'
+    plt.rcParams['legend.fancybox'] = True
+    plt.rcParams['legend.shadow'] = False
     
     # 尝试加载系统字体
     _load_system_fonts()
