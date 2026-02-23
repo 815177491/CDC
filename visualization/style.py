@@ -76,6 +76,51 @@ ACADEMIC_STATS_BOX = {
 }
 
 
+# ============================================================================
+# 顶刊级对比实验专用色板（低饱和度、高明度一致性）
+# Nature Methods / Science Robotics 风格
+# ============================================================================
+
+EXPERIMENT_PALETTE = [
+    '#3D6CA4',    # 雾霾蓝 — 本方法（Ours）
+    '#C0655E',    # 暗玫红 — 基线1
+    '#6A9B6A',    # 灰橄榄 — 基线2
+    '#C8A850',    # 低饱和金 — 基线3
+    '#8B7EB8',    # 薰衣草灰 — 基线4
+    '#5BA4B5',    # 灰青 — 基线5
+]
+
+# 对比实验标记样式
+EXPERIMENT_MARKERS = ['o', 's', 'D', '^', 'v', 'p']
+
+# 极简网格（几乎不可见）
+EXPERIMENT_GRID = dict(alpha=0.08, linestyle='-', linewidth=0.4, color='#E0E0E0')
+
+# 极浅背景
+EXPERIMENT_BG = '#FAFAFA'
+
+
+def despine(ax, left: bool = True, bottom: bool = True):
+    """
+    移除多余边框（spine），仅保留指定轴线。
+
+    Args:
+        ax: matplotlib Axes 对象
+        left: 是否保留左侧轴线
+        bottom: 是否保留底部轴线
+    """
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(left)
+    ax.spines['bottom'].set_visible(bottom)
+    if left:
+        ax.spines['left'].set_linewidth(0.8)
+        ax.spines['left'].set_color('#555555')
+    if bottom:
+        ax.spines['bottom'].set_linewidth(0.8)
+        ax.spines['bottom'].set_color('#555555')
+
+
 def set_tick_fontsize(ax, fontsize: int = None):
     """
     设置坐标轴刻度标签的字体大小

@@ -60,6 +60,13 @@ __all__ = [
     'plot_control_response',
     'plot_method_comparison',
     'plot_dual_agent_architecture',
+    # Experiments (bar charts)
+    'plot_overall_metrics_bars',
+    'plot_per_fault_f1_bars',
+    'plot_ablation_delta_bars',
+    'plot_severity_robustness_bars',
+    'plot_multi_run_statistics',
+    'build_avg_severity_accuracy',
     # 向后兼容
     'COLORS',
 ]
@@ -118,6 +125,14 @@ _LAZY_IMPORTS = {
         'plot_control_response',
         'plot_method_comparison',
         'plot_dual_agent_architecture',
+    ],
+    '.experiment_plots': [
+        'plot_overall_metrics_bars',
+        'plot_per_fault_f1_bars',
+        'plot_ablation_delta_bars',
+        'plot_severity_robustness_bars',
+        'plot_multi_run_statistics',
+        'build_avg_severity_accuracy',
     ],
 }
 
