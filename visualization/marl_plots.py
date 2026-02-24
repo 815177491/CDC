@@ -2130,3 +2130,723 @@ def plot_training_phase_diagram(
     plt.tight_layout()
     save_figure(fig, 'training', 'training_phase_diagram')
     return fig
+
+
+# ============================================================================
+# 理论原理示意图 (6 张)  —— 用于论文 5.1-5.3 的方法/架构介绍
+# ============================================================================
+
+def plot_reward_structure_schematic(
+    figsize: Tuple[int, int] = (14, 8),
+) -> plt.Figure:
+    """
+    奖励函数结构示意图
+
+    展示诊断奖励、控制奖励、协作奖励三路信号的组成与汇聚关系。
+
+    Args:
+        figsize: 图形尺寸
+
+    Returns:
+        fig: matplotlib Figure 对象（已保存至 visualization_output/modeling/）
+    """
+    title_size = PLOT_CONFIG.FONT_SIZE_SUPTITLE
+    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
+    text_size  = PLOT_CONFIG.FONT_SIZE_TEXT
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.set_xlim(0, 14)
+    ax.set_ylim(0, 8)
+    ax.axis('off')
+    ax.set_title('多智能体奖励函数结构', fontsize=title_size, fontweight='bold', pad=15)
+
+    # ── 颜色定义 ──
+    c_diag = COLORS['primary']
+    c_ctrl = COLORS['success']
+    c_coop = COLORS['warning']
+    c_total = COLORS['dark']
+
+    def _box(xy, w, h, color, label, sublabel='', alpha=0.25):
+        box = mpatches.FancyBboxPatch(
+            xy, w, h, boxstyle='round,pad=0.12,rounding_size=0.15',
+            facecolor=color, alpha=alpha, edgecolor=color, linewidth=2, zorder=3)
+        ax.add_patch(box)
+        cx, cy = xy[0] + w / 2, xy[1] + h / 2
+        if sublabel:
+            ax.text(cx, cy + 0.2, label, ha='center', va='center',
+                    fontsize=text_size, fontweight='bold', zorder=4)
+            ax.text(cx, cy - 0.25, sublabel, ha='center', va='center',
+                    fontsize=text_size - 2, color='#555', zorder=4)
+        else:
+            ax.text(cx, cy, label, ha='center', va='center',
+                    fontsize=text_size, fontweight='bold', zorder=4)
+
+    # ── 诊断奖励分支（左上） ──
+    _box((0.3, 6.2), 3.0, 1.2, c_diag, r'$r_{diag}$  诊断奖励',
+         '分类准确 +10 / 误分类 −5')
+
+    # 诊断分量
+    diag_items = [
+        (0.5, 5.3, '分类准确性\n±10.0 / −5.0'),
+        (0.5, 4.3, '严重度误差\n$-5|s_{pred}-s_{true}|$'),
+        (0.5, 3.3, '抗瞬态误报\n+8.0 / −5.0'),
+    ]
+    for (x, y, txt) in diag_items:
+        small = mpatches.FancyBboxPatch(
+            (x, y), 2.6, 0.8, boxstyle='round,pad=0.08',
+            facecolor=c_diag, alpha=0.12, edgecolor=c_diag,
+            linewidth=1.2, linestyle='--', zorder=2)
+        ax.add_patch(small)
+        ax.text(x + 1.3, y + 0.4, txt, ha='center', va='center',
+                fontsize=text_size - 2, zorder=3)
+
+    # ── 控制奖励分支（中上） ──
+    _box((5.2, 6.2), 3.0, 1.2, c_ctrl, r'$r_{ctrl}$  控制奖励',
+         '性能维持 / 平滑 / 保护')
+
+    ctrl_items = [
+        (5.4, 5.3, '性能维持\n$+5 \\cdot P_{max}/P_{max}^{tgt}$'),
+        (5.4, 4.3, '控制平滑惩罚\n$-0.5|\\Delta timing|$'),
+        (5.4, 3.3, '保护适时性\n+3.0 / −2.0'),
+    ]
+    for (x, y, txt) in ctrl_items:
+        small = mpatches.FancyBboxPatch(
+            (x, y), 2.6, 0.8, boxstyle='round,pad=0.08',
+            facecolor=c_ctrl, alpha=0.12, edgecolor=c_ctrl,
+            linewidth=1.2, linestyle='--', zorder=2)
+        ax.add_patch(small)
+        ax.text(x + 1.3, y + 0.4, txt, ha='center', va='center',
+                fontsize=text_size - 2, zorder=3)
+
+    # ── 协作奖励分支（右上） ──
+    _box((10.0, 6.2), 3.2, 1.2, c_coop, r'$r_{coop}$  协作奖励',
+         '联合表现 ×$w_{coop}$')
+
+    coop_items = [
+        (10.2, 5.3, '诊断✓ & 性能>0.9\n+3.0'),
+        (10.2, 4.3, '诊断✓ & 性能<0.7\n−1.0'),
+        (10.2, 3.3, '诊断✗ & 性能<0.8\n−2.0'),
+    ]
+    for (x, y, txt) in coop_items:
+        small = mpatches.FancyBboxPatch(
+            (x, y), 2.8, 0.8, boxstyle='round,pad=0.08',
+            facecolor=c_coop, alpha=0.12, edgecolor=c_coop,
+            linewidth=1.2, linestyle='--', zorder=2)
+        ax.add_patch(small)
+        ax.text(x + 1.4, y + 0.4, txt, ha='center', va='center',
+                fontsize=text_size - 2, zorder=3)
+
+    # ── 汇聚箭头 → 总奖励 ──
+    for sx in [1.8, 6.7, 11.6]:
+        ax.annotate('', xy=(7.0, 2.1), xytext=(sx, 3.2),
+                    arrowprops=dict(arrowstyle='->', lw=2.2,
+                                   color=c_total, alpha=0.7,
+                                   connectionstyle='arc3,rad=0.15'),
+                    zorder=5)
+
+    _box((5.0, 1.2), 4.0, 1.0, c_total, r'$R_i = r_i + w_{coop} \cdot r_{coop}$',
+         alpha=0.20)
+
+    # 底部文字
+    ax.text(7.0, 0.5, '诊断智能体与控制智能体各自获得独立的总奖励信号',
+            ha='center', va='center', fontsize=text_size - 1,
+            color='#777', style='italic')
+
+    plt.tight_layout()
+    save_figure(fig, 'modeling', 'reward_structure_schematic')
+    plt.close(fig)
+    return fig
+
+
+def plot_fault_injection_schematic(
+    figsize: Tuple[int, int] = (16, 9),
+) -> plt.Figure:
+    """
+    故障注入与变工况调度机制示意图
+
+    左侧：三种故障类型 × 三种演化模式的组合；
+    右侧：五种工况模式示意；中间汇入 EngineEnv。
+
+    Args:
+        figsize: 图形尺寸
+
+    Returns:
+        fig: matplotlib Figure 对象（已保存至 visualization_output/modeling/）
+    """
+    title_size = PLOT_CONFIG.FONT_SIZE_SUPTITLE
+    text_size  = PLOT_CONFIG.FONT_SIZE_TEXT
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.set_xlim(0, 16)
+    ax.set_ylim(0, 9)
+    ax.axis('off')
+    ax.set_title('故障注入与变工况调度机制', fontsize=title_size,
+                 fontweight='bold', pad=15)
+
+    c_fault   = COLORS['danger']
+    c_mode    = COLORS['purple']
+    c_op      = COLORS['info']
+    c_env     = COLORS['dark']
+    c_curri   = COLORS['warning']
+
+    def _rbox(xy, w, h, color, label, alpha=0.20, fs=None):
+        box = mpatches.FancyBboxPatch(
+            xy, w, h, boxstyle='round,pad=0.1,rounding_size=0.12',
+            facecolor=color, alpha=alpha, edgecolor=color, linewidth=1.8, zorder=3)
+        ax.add_patch(box)
+        ax.text(xy[0] + w / 2, xy[1] + h / 2, label, ha='center', va='center',
+                fontsize=fs or text_size, fontweight='bold', zorder=4)
+
+    # ── 左侧：故障类型 ──
+    ax.text(2.0, 8.5, '故障类型', ha='center', fontsize=text_size + 1,
+            fontweight='bold', color=c_fault)
+    faults = [('正时故障', 7.3), ('泄漏故障', 6.3), ('燃油故障', 5.3)]
+    for name, y in faults:
+        _rbox((0.5, y), 3.0, 0.8, c_fault, name)
+
+    # ── 左下：演化模式 ──
+    ax.text(2.0, 4.5, '演化模式', ha='center', fontsize=text_size + 1,
+            fontweight='bold', color=c_mode)
+    modes = [('突发 (Sudden)', 3.5), ('渐变 (Gradual)', 2.5), ('间歇 (Intermittent)', 1.5)]
+    for name, y in modes:
+        _rbox((0.3, y), 3.4, 0.8, c_mode, name)
+
+    # 故障×模式组合箭头 → FaultInjector
+    for y in [7.7, 6.7, 5.7]:
+        ax.annotate('', xy=(6.0, 5.5), xytext=(3.6, y),
+                    arrowprops=dict(arrowstyle='->', lw=1.5, color=c_fault,
+                                   alpha=0.5, connectionstyle='arc3,rad=0.1'),
+                    zorder=4)
+    for y in [3.9, 2.9, 1.9]:
+        ax.annotate('', xy=(6.0, 4.8), xytext=(3.8, y),
+                    arrowprops=dict(arrowstyle='->', lw=1.5, color=c_mode,
+                                   alpha=0.5, connectionstyle='arc3,rad=-0.1'),
+                    zorder=4)
+
+    # ── 中间：FaultInjector + EngineEnv ──
+    _rbox((5.5, 4.2), 3.2, 1.8, c_fault, 'FaultInjector\n组合采样\n$s \\sim U(0.1, 0.3+0.5d)$',
+          alpha=0.15, fs=text_size - 1)
+
+    _rbox((5.5, 1.5), 3.2, 2.2, c_env, 'EngineEnv\n零维热力学模型\n→ $P_{max}, P_{comp}, T_{exh}$',
+          alpha=0.15, fs=text_size - 1)
+
+    ax.annotate('', xy=(7.1, 3.7), xytext=(7.1, 4.1),
+                arrowprops=dict(arrowstyle='->', lw=2.5, color=c_env), zorder=5)
+
+    # ── 右侧：工况模式 ──
+    ax.text(13.0, 8.5, '工况模式', ha='center', fontsize=text_size + 1,
+            fontweight='bold', color=c_op)
+    ops = [
+        ('稳态 (Steady)', 7.3),
+        ('加速 (Acceleration)', 6.3),
+        ('减速 (Deceleration)', 5.3),
+        ('负荷波动 (Load Change)', 4.3),
+        ('机动 (Maneuvering)', 3.3),
+    ]
+    for name, y in ops:
+        _rbox((10.8, y), 4.4, 0.8, c_op, name)
+
+    # 工况→EngineEnv 箭头
+    for _, y in ops:
+        ax.annotate('', xy=(8.8, 2.6), xytext=(10.7, y + 0.4),
+                    arrowprops=dict(arrowstyle='->', lw=1.3, color=c_op,
+                                   alpha=0.4, connectionstyle='arc3,rad=-0.1'),
+                    zorder=4)
+
+    # ── 右下：OperatingScheduler ──
+    _rbox((10.8, 1.5), 4.4, 1.5, c_op,
+          'OperatingScheduler\n随机选择工况 + 参数范围',
+          alpha=0.12, fs=text_size - 1)
+
+    ax.annotate('', xy=(8.8, 2.2), xytext=(10.7, 2.2),
+                arrowprops=dict(arrowstyle='->', lw=2.0, color=c_op), zorder=5)
+
+    # ── 课程学习连接 ──
+    _rbox((5.5, 0.1), 3.2, 1.0, c_curri,
+          r'课程学习  $d = \min(1, n/500)$', alpha=0.15, fs=text_size - 1)
+    ax.annotate('', xy=(5.7, 4.2), xytext=(5.7, 1.15),
+                arrowprops=dict(arrowstyle='->', lw=1.8, color=c_curri,
+                               connectionstyle='arc3,rad=-0.3', linestyle='--'),
+                zorder=4)
+    ax.annotate('', xy=(10.7, 1.8), xytext=(8.8, 0.6),
+                arrowprops=dict(arrowstyle='->', lw=1.8, color=c_curri,
+                               connectionstyle='arc3,rad=0.2', linestyle='--'),
+                zorder=4)
+
+    plt.tight_layout()
+    save_figure(fig, 'modeling', 'fault_injection_schematic')
+    plt.close(fig)
+    return fig
+
+
+def plot_pikan_architecture(
+    figsize: Tuple[int, int] = (16, 10),
+) -> plt.Figure:
+    """
+    PIKAN（物理信息KAN）网络结构示意图
+
+    展示输入层 → KAN层（B样条基函数）→ 物理约束分支 → 输出头的完整架构。
+
+    Args:
+        figsize: 图形尺寸
+
+    Returns:
+        fig: matplotlib Figure 对象（已保存至 visualization_output/modeling/）
+    """
+    title_size = PLOT_CONFIG.FONT_SIZE_SUPTITLE
+    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
+    text_size  = PLOT_CONFIG.FONT_SIZE_TEXT
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.set_xlim(0, 16)
+    ax.set_ylim(0, 10)
+    ax.axis('off')
+    ax.set_title('PIKAN 诊断网络结构', fontsize=title_size, fontweight='bold', pad=15)
+
+    c_input  = COLORS['primary']
+    c_kan    = COLORS['purple']
+    c_phys   = COLORS['warning']
+    c_out    = COLORS['danger']
+    c_intent = COLORS['info']
+    c_fusion = COLORS['teal']
+
+    def _rbox(xy, w, h, color, label, alpha=0.22, fs=None, sublabel=''):
+        box = mpatches.FancyBboxPatch(
+            xy, w, h, boxstyle='round,pad=0.1,rounding_size=0.12',
+            facecolor=color, alpha=alpha, edgecolor=color, linewidth=2, zorder=3)
+        ax.add_patch(box)
+        cx, cy = xy[0] + w / 2, xy[1] + h / 2
+        if sublabel:
+            ax.text(cx, cy + 0.25, label, ha='center', va='center',
+                    fontsize=fs or text_size, fontweight='bold', zorder=4)
+            ax.text(cx, cy - 0.3, sublabel, ha='center', va='center',
+                    fontsize=(fs or text_size) - 2, color='#555', zorder=4)
+        else:
+            ax.text(cx, cy, label, ha='center', va='center',
+                    fontsize=fs or text_size, fontweight='bold', zorder=4)
+
+    def _arrow(xy_to, xy_from, color=COLORS['dark'], **kw):
+        ax.annotate('', xy=xy_to, xytext=xy_from,
+                    arrowprops=dict(arrowstyle='->', lw=2.0, color=color,
+                                   **kw), zorder=5)
+
+    # ── 输入层 ──
+    _rbox((0.3, 3.5), 2.4, 3.0, c_input,
+          '输入\n$o_{diag}$', sublabel='热力学窗口 30\n工况 4 | 控制历史 30\n变化率 3 | 通信 8\n共 75 维')
+
+    # ── KAN Layer 1 ──
+    _rbox((3.5, 4.5), 2.8, 2.5, c_kan,
+          'KAN Layer 1', sublabel='B-spline 基函数\n$G=5, k=3, n_{basis}=8$\nSiLU + 样条权重')
+    _arrow((3.4, 5.7), (2.8, 5.0), c_input)
+
+    # ── KAN Layer 2 ──
+    _rbox((3.5, 1.2), 2.8, 2.5, c_kan,
+          'KAN Layer 2', sublabel='$y_{ij} = w_{base} \\cdot \\text{SiLU}(x)$\n$+ \\sum w_{spline} B_l(x)$')
+    _arrow((4.9, 4.4), (4.9, 3.8), c_kan)
+
+    # ── 意图头 ──
+    _rbox((7.2, 7.5), 2.8, 1.8, c_intent,
+          '意图映射头', sublabel=r'$\mathbf{z}_{diag} \in \mathbb{R}^{16}$')
+    _arrow((7.1, 8.4), (6.4, 6.0), c_intent, connectionstyle='arc3,rad=0.3')
+
+    # ── 融合层 ──
+    _rbox((7.2, 4.8), 2.8, 2.0, c_fusion,
+          '融合层', sublabel=r'$\tilde{f} = \text{Fusion}([f; \mathbf{z}_{ctrl}])$')
+    _arrow((7.1, 5.8), (6.4, 5.2), c_kan)
+
+    # 意图输入 (来自控制智能体)
+    ax.text(7.0, 3.8, r'← $\mathbf{z}_{ctrl}$（控制意图）',
+            fontsize=text_size - 1, color=c_intent, style='italic')
+    _arrow((8.0, 4.7), (8.0, 4.1), c_intent, linestyle='--')
+
+    # ── 输出头 ──
+    out_labels = [
+        (r'故障分类  Categorical(4)', 8.8),
+        (r'严重度  Beta($\alpha, \beta$)', 7.6),
+        (r'置信度  Beta($\alpha, \beta$)', 6.4),
+    ]
+    for label, y in out_labels:
+        _rbox((10.8, y - 0.4), 4.5, 0.9, c_out, label, fs=text_size - 1)
+    for _, y in out_labels:
+        _arrow((10.7, y), (10.1, 5.8), c_out,
+               connectionstyle='arc3,rad=0.05')
+
+    # ── 物理约束分支 (底部) ──
+    _rbox((7.2, 0.5), 8.3, 2.8, c_phys,
+          '物理信息约束', alpha=0.10)
+
+    phys_items = [
+        (r'$L_1$: 压缩约束（泄漏→$P_{comp}$↓）', 7.5, 2.5),
+        (r'$L_2$: 燃烧约束（燃油→$P_{max}$↓）', 7.5, 1.8),
+        (r'$L_3$: 排温约束（正时+燃油→$T_{exh}$↑）', 11.8, 2.5),
+        (r'$L_4$: 一致性约束 + $L_{reg}$', 11.8, 1.8),
+    ]
+    for txt, x, y in phys_items:
+        ax.text(x, y, txt, fontsize=text_size - 2, ha='left', va='center',
+                color='#555', zorder=4)
+
+    ax.text(11.4, 0.8, r'$L_{physics} = L_1 + L_2 + L_3 + \lambda_{cons} L_4 + 0.001 L_{reg}$',
+            fontsize=text_size - 1, ha='center', va='center',
+            fontweight='bold', color=c_phys, zorder=4,
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                      edgecolor=c_phys, alpha=0.8))
+
+    # 连接线: 融合层 → 物理约束
+    _arrow((8.6, 3.4), (8.6, 4.7), c_phys, linestyle='--')
+
+    plt.tight_layout()
+    save_figure(fig, 'modeling', 'pikan_architecture')
+    plt.close(fig)
+    return fig
+
+
+def plot_control_critic_architecture(
+    figsize: Tuple[int, int] = (16, 9),
+) -> plt.Figure:
+    """
+    控制网络与共享Critic结构示意图
+
+    左半：控制Agent网络（编码→意图→融合→4输出含通信向量）；
+    右半：SharedCritic（双观测拼接→共享层→双价值头）。
+
+    Args:
+        figsize: 图形尺寸
+
+    Returns:
+        fig: matplotlib Figure 对象（已保存至 visualization_output/modeling/）
+    """
+    title_size = PLOT_CONFIG.FONT_SIZE_SUPTITLE
+    text_size  = PLOT_CONFIG.FONT_SIZE_TEXT
+
+    fig, axes = plt.subplots(1, 2, figsize=figsize,
+                             gridspec_kw={'width_ratios': [1, 1]})
+
+    c_input  = COLORS['primary']
+    c_enc    = COLORS['purple']
+    c_out    = COLORS['success']
+    c_comm   = COLORS['info']
+    c_critic = COLORS['danger']
+    c_shared = COLORS['dark']
+
+    # ═══════════ 左子图：控制网络 ═══════════
+    ax = axes[0]
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+    ax.axis('off')
+    ax.set_title('控制智能体网络', fontsize=title_size, fontweight='bold', pad=12)
+
+    def _box(ax_, xy, w, h, color, label, alpha=0.22, fs=None):
+        box = mpatches.FancyBboxPatch(
+            xy, w, h, boxstyle='round,pad=0.1,rounding_size=0.12',
+            facecolor=color, alpha=alpha, edgecolor=color, linewidth=1.8, zorder=3)
+        ax_.add_patch(box)
+        ax_.text(xy[0] + w / 2, xy[1] + h / 2, label, ha='center', va='center',
+                 fontsize=fs or text_size, fontweight='bold', zorder=4)
+
+    # 输入
+    _box(ax, (0.3, 4), 2.2, 2, c_input, '观测 $o_{ctrl}$\n40 维')
+
+    # 编码器
+    _box(ax, (3.3, 4), 2.2, 2, c_enc, 'MLP 编码器\n128 → 128')
+    ax.annotate('', xy=(3.2, 5), xytext=(2.6, 5),
+                arrowprops=dict(arrowstyle='->', lw=2.0, color=COLORS['dark']), zorder=5)
+
+    # 意图头
+    _box(ax, (3.3, 7), 2.2, 1.5, c_comm,
+         '意图头\n$\\mathbf{z}_{ctrl} \\in \\mathbb{R}^{16}$', fs=text_size - 1)
+    ax.annotate('', xy=(4.4, 6.9), xytext=(4.4, 6.1),
+                arrowprops=dict(arrowstyle='->', lw=1.5, color=c_comm), zorder=5)
+
+    # 融合层
+    _box(ax, (3.3, 1.0), 2.2, 2.2, COLORS['teal'],
+         '融合层\n$[f; \\mathbf{z}_{diag}]$', fs=text_size - 1)
+    ax.annotate('', xy=(4.4, 3.3), xytext=(4.4, 3.9),
+                arrowprops=dict(arrowstyle='->', lw=1.5, color=COLORS['teal']), zorder=5)
+
+    # 输出头
+    heads = [
+        ('正时: $\\mathcal{N}(\\mu, \\sigma^2)$', c_out, 8.2),
+        ('燃油: $\\mathcal{N}(\\mu, \\sigma^2)$', c_out, 6.8),
+        ('保护: Categorical(4)', c_out, 5.4),
+        ('通信: Tanh $\\in [-1,1]^8$', c_comm, 4.0),
+    ]
+    for label, color, y in heads:
+        _box(ax, (6.5, y - 0.5), 3.2, 0.9, color, label, fs=text_size - 1)
+        ax.annotate('', xy=(6.4, y), xytext=(5.6, 2.1 if y < 5 else 5.0),
+                    arrowprops=dict(arrowstyle='->', lw=1.3, color=COLORS['dark'],
+                                   connectionstyle='arc3,rad=0.05'), zorder=5)
+
+    # ═══════════ 右子图：SharedCritic ═══════════
+    ax = axes[1]
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+    ax.axis('off')
+    ax.set_title('共享价值网络 (Shared Critic)', fontsize=title_size,
+                 fontweight='bold', pad=12)
+
+    # 双输入
+    _box(ax, (0.3, 7), 2.5, 1.5, COLORS['primary'],
+         '$o_{diag}$\n75 维', fs=text_size - 1)
+    _box(ax, (0.3, 4.5), 2.5, 1.5, COLORS['success'],
+         '$o_{ctrl}$\n40 维', fs=text_size - 1)
+
+    # 拼接
+    _box(ax, (3.5, 5.5), 2.2, 2, c_shared,
+         '拼接\n$[o_{diag}; o_{ctrl}]$\n115 维', fs=text_size - 1)
+    ax.annotate('', xy=(3.4, 6.8), xytext=(2.9, 7.5),
+                arrowprops=dict(arrowstyle='->', lw=1.8, color=c_shared), zorder=5)
+    ax.annotate('', xy=(3.4, 6.0), xytext=(2.9, 5.5),
+                arrowprops=dict(arrowstyle='->', lw=1.8, color=c_shared), zorder=5)
+
+    # 共享层
+    _box(ax, (3.5, 2.5), 2.2, 2.2, c_shared,
+         '共享特征层\nFC→ReLU→LN\n×3', fs=text_size - 1)
+    ax.annotate('', xy=(4.6, 4.8), xytext=(4.6, 5.4),
+                arrowprops=dict(arrowstyle='->', lw=2.0, color=c_shared), zorder=5)
+
+    # 双价值头
+    _box(ax, (7.0, 7.0), 2.5, 1.5, COLORS['primary'],
+         '$V_{diag}(s)$\n诊断价值', fs=text_size - 1)
+    _box(ax, (7.0, 4.5), 2.5, 1.5, COLORS['success'],
+         '$V_{ctrl}(s)$\n控制价值', fs=text_size - 1)
+    ax.annotate('', xy=(6.9, 7.7), xytext=(5.8, 4.0),
+                arrowprops=dict(arrowstyle='->', lw=1.8, color=COLORS['primary'],
+                               connectionstyle='arc3,rad=0.3'), zorder=5)
+    ax.annotate('', xy=(6.9, 5.2), xytext=(5.8, 3.5),
+                arrowprops=dict(arrowstyle='->', lw=1.8, color=COLORS['success'],
+                               connectionstyle='arc3,rad=-0.2'), zorder=5)
+
+    # 标注
+    ax.text(8.25, 2.5, '训练时: 集中式\n执行时: 不参与',
+            fontsize=text_size - 1, ha='center', va='center',
+            color='#777', style='italic',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='#f8f8f8',
+                      edgecolor='#ddd', alpha=0.9))
+
+    plt.tight_layout()
+    save_figure(fig, 'modeling', 'control_critic_architecture')
+    plt.close(fig)
+    return fig
+
+
+def plot_mappo_training_flow(
+    figsize: Tuple[int, int] = (16, 10),
+) -> plt.Figure:
+    """
+    MAPPO 训练流程图
+
+    展示环境交互 → Rollout Buffer → GAE计算 → PPO-Clip更新
+    → 物理损失 → 梯度裁剪的循环。
+
+    Args:
+        figsize: 图形尺寸
+
+    Returns:
+        fig: matplotlib Figure 对象（已保存至 visualization_output/modeling/）
+    """
+    title_size = PLOT_CONFIG.FONT_SIZE_SUPTITLE
+    text_size  = PLOT_CONFIG.FONT_SIZE_TEXT
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.set_xlim(0, 16)
+    ax.set_ylim(0, 10)
+    ax.axis('off')
+    ax.set_title('MAPPO 训练流程', fontsize=title_size, fontweight='bold', pad=15)
+
+    c_env     = COLORS['primary']
+    c_buffer  = COLORS['purple']
+    c_gae     = COLORS['info']
+    c_ppo     = COLORS['danger']
+    c_phys    = COLORS['warning']
+    c_grad    = COLORS['success']
+    c_arrow   = COLORS['dark']
+
+    def _rbox(xy, w, h, color, label, sublabel='', alpha=0.22, fs=None):
+        box = mpatches.FancyBboxPatch(
+            xy, w, h, boxstyle='round,pad=0.12,rounding_size=0.15',
+            facecolor=color, alpha=alpha, edgecolor=color, linewidth=2, zorder=3)
+        ax.add_patch(box)
+        cx, cy = xy[0] + w / 2, xy[1] + h / 2
+        if sublabel:
+            ax.text(cx, cy + 0.3, label, ha='center', va='center',
+                    fontsize=fs or text_size, fontweight='bold', zorder=4)
+            ax.text(cx, cy - 0.3, sublabel, ha='center', va='center',
+                    fontsize=(fs or text_size) - 2, color='#555', zorder=4)
+        else:
+            ax.text(cx, cy, label, ha='center', va='center',
+                    fontsize=fs or text_size, fontweight='bold', zorder=4)
+
+    def _arrow(xy_to, xy_from, label='', color=c_arrow, **kw):
+        ax.annotate('', xy=xy_to, xytext=xy_from,
+                    arrowprops=dict(arrowstyle='->', lw=2.2, color=color, **kw),
+                    zorder=5)
+        if label:
+            mx = (xy_to[0] + xy_from[0]) / 2
+            my = (xy_to[1] + xy_from[1]) / 2
+            ax.text(mx, my + 0.25, label, ha='center', va='bottom',
+                    fontsize=text_size - 2, color=color, style='italic')
+
+    # ── Step 1: 环境交互 （左） ──
+    _rbox((0.3, 6.5), 3.5, 2.5, c_env,
+          '① 环境交互',
+          'EngineEnv + 双智能体\n收集 $(o, a, r, o\')$ × $T$ 步\n$T = 2048$')
+
+    # ── Step 2: Rollout Buffer ──
+    _rbox((0.3, 3.0), 3.5, 2.5, c_buffer,
+          '② Rollout Buffer',
+          '存储双智能体轨迹\n$\\{o_i, a_i, r_i, \\text{logp}_i, V_i\\}$\n批量采样 $B=256$')
+
+    _arrow((2.05, 6.4), (2.05, 5.6))
+
+    # ── Step 3: GAE 计算 ──
+    _rbox((5.5, 6.5), 4.5, 2.5, c_gae,
+          '③ 广义优势估计 (GAE)',
+          r'$\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)$'
+          '\n'
+          r'$\hat{A}_t = \sum (\gamma\lambda)^l \delta_{t+l}$'
+          '\n'
+          r'$\gamma=0.99, \lambda=0.95$')
+    _arrow((5.4, 7.7), (3.9, 7.7))
+
+    # ── Step 4: PPO-Clip 更新 ──
+    _rbox((5.5, 3.0), 4.5, 2.5, c_ppo,
+          '④ PPO-Clip 策略更新',
+          r'$L^{CLIP} = \min(r_t \hat{A}_t,$'
+          '\n'
+          r'$\text{clip}(r_t, 1\pm\epsilon)\hat{A}_t)$'
+          '\n'
+          r'$\epsilon = 0.2$')
+    _arrow((7.75, 6.4), (7.75, 5.6))
+
+    # ── Step 5: 物理约束 + Critic 更新 ──
+    _rbox((11.5, 6.5), 4.0, 2.5, c_phys,
+          '⑤ 辅助损失',
+          r'物理约束 $\lambda_{phys}=0.1$' '\n'
+          r'Critic: $\text{MSE}(V, R)$' '\n'
+          r'熵正则化 $c_e=0.01$')
+    _arrow((11.4, 7.7), (10.1, 7.7))
+
+    # ── Step 6: 梯度裁剪 & 参数更新 ──
+    _rbox((11.5, 3.0), 4.0, 2.5, c_grad,
+          '⑥ 梯度裁剪 & 更新',
+          '最大梯度范数 0.5\nAdam 优化器\n$\\alpha = 3 \\times 10^{-4}$')
+    _arrow((13.5, 6.4), (13.5, 5.6))
+
+    # ── 循环箭头：⑥ → ① ──
+    ax.annotate('', xy=(0.3, 8.3), xytext=(13.5, 1.0),
+                arrowprops=dict(arrowstyle='->', lw=2.5, color=c_arrow,
+                                connectionstyle='arc3,rad=-0.4',
+                                linestyle='--', alpha=0.5),
+                zorder=4)
+    ax.text(8.0, 0.6, '↺ 循环直至收敛（100 epochs × 多 episode）',
+            ha='center', fontsize=text_size - 1, color='#777', style='italic')
+
+    # ── 底部: buffer → ppo 连接 ──
+    _arrow((5.4, 4.2), (3.9, 4.2))
+    _arrow((11.4, 4.2), (10.1, 4.2))
+
+    plt.tight_layout()
+    save_figure(fig, 'modeling', 'mappo_training_flow')
+    plt.close(fig)
+    return fig
+
+
+def plot_curriculum_schedule(
+    figsize: Tuple[int, int] = (12, 7),
+) -> plt.Figure:
+    """
+    课程学习难度调度示意图
+
+    横轴 episode 数，纵轴难度系数 $d$；标注三个阶段及对应的故障采样策略。
+
+    Args:
+        figsize: 图形尺寸
+
+    Returns:
+        fig: matplotlib Figure 对象（已保存至 visualization_output/modeling/）
+    """
+    tick_size  = PLOT_CONFIG.FONT_SIZE_TICK
+    label_size = PLOT_CONFIG.FONT_SIZE_LABEL
+    title_size = PLOT_CONFIG.FONT_SIZE_SUPTITLE
+    text_size  = PLOT_CONFIG.FONT_SIZE_TEXT
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # 难度曲线
+    episodes = np.linspace(0, 700, 1000)
+    d = np.minimum(1.0, episodes / 500.0)
+
+    ax.plot(episodes, d, color=COLORS['primary'], linewidth=LINE_WIDTH_HERO,
+            zorder=5, label=r'$d = \min(1,\; n_{episode} / 500)$')
+
+    # 阶段标注区域
+    ax.axvspan(0, 150, alpha=0.08, color=COLORS['success'], zorder=1)
+    ax.axvspan(150, 350, alpha=0.08, color=COLORS['warning'], zorder=1)
+    ax.axvspan(350, 700, alpha=0.08, color=COLORS['danger'], zorder=1)
+
+    # 分界线
+    for x_val in [150, 350]:
+        ax.axvline(x=x_val, color=COLORS['dark'], linestyle=':', alpha=0.4,
+                   linewidth=LINE_WIDTH_SECONDARY)
+
+    # 阶段标注框
+    stages = [
+        (75, 0.85, '简单阶段', '$d < 0.3$\n单一故障\n低严重度\n稳态工况',
+         COLORS['success']),
+        (250, 0.85, '中等阶段', '$0.3 \\leq d \\leq 0.7$\n引入双重故障\n中等严重度\n加减速工况',
+         COLORS['warning']),
+        (525, 0.85, '困难阶段', '$d > 0.7$\n三重复合故障\n高严重度\n机动工况',
+         COLORS['danger']),
+    ]
+    for x, y, title, desc, color in stages:
+        ax.text(x, y, f'{title}\n{desc}', ha='center', va='top',
+                fontsize=text_size - 1, color=color)
+
+    # 关键分界点标注
+    ax.plot(150, 0.3, 'o', markersize=10, color=COLORS['warning'],
+            markeredgecolor='white', markeredgewidth=2, zorder=6)
+    ax.text(165, 0.33, '$d = 0.3$', fontsize=text_size - 1,
+            color=COLORS['warning'])
+
+    ax.plot(350, 0.7, 'o', markersize=10, color=COLORS['danger'],
+            markeredgecolor='white', markeredgewidth=2, zorder=6)
+    ax.text(365, 0.73, '$d = 0.7$', fontsize=text_size - 1,
+            color=COLORS['danger'])
+
+    ax.plot(500, 1.0, '*', markersize=14, color=COLORS['primary'],
+            markeredgecolor='white', markeredgewidth=2, zorder=6)
+    ax.text(510, 0.95, '$d = 1.0$\n(饱和)', fontsize=text_size - 1,
+            color=COLORS['primary'])
+
+    # 严重度采样范围标注
+    ep_sample = np.linspace(0, 700, 200)
+    d_sample = np.minimum(1.0, ep_sample / 500.0)
+    s_low = np.full_like(d_sample, 0.1)
+    s_high = 0.3 + 0.5 * d_sample
+
+    ax2 = ax.twinx()
+    ax2.fill_between(ep_sample, s_low, s_high, alpha=0.12,
+                     color=COLORS['secondary'], zorder=2)
+    ax2.plot(ep_sample, s_high, color=COLORS['secondary'],
+             linewidth=LINE_WIDTH_SECONDARY, linestyle='--',
+             label=r'$s_{max} = 0.3 + 0.5d$', zorder=3)
+    ax2.set_ylabel('故障严重度采样范围', fontsize=label_size,
+                   color=COLORS['secondary'])
+    ax2.set_ylim(0, 1.1)
+    ax2.tick_params(axis='y', labelcolor=COLORS['secondary'])
+    set_tick_fontsize(ax2, tick_size)
+    ax2.legend(fontsize=PLOT_CONFIG.FONT_SIZE_LEGEND, loc='center right')
+
+    ax.set_xlabel('训练 Episode', fontsize=label_size)
+    ax.set_ylabel('难度系数 $d$', fontsize=label_size)
+    ax.set_title('课程学习难度调度策略', fontsize=title_size, fontweight='bold')
+    ax.set_xlim(0, 700)
+    ax.set_ylim(0, 1.15)
+    ax.legend(fontsize=PLOT_CONFIG.FONT_SIZE_LEGEND, loc='upper left')
+    ax.grid(**ACADEMIC_GRID)
+    set_tick_fontsize(ax, tick_size)
+
+    plt.tight_layout()
+    save_figure(fig, 'modeling', 'curriculum_schedule')
+    plt.close(fig)
+    return fig

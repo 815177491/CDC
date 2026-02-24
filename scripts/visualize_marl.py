@@ -3,7 +3,7 @@
 """
 MARL 可视化运行脚本
 ====================
-生成 MARL 双智能体强化学习相关的所有学术风格图片（共 24 张）
+生成 MARL 双智能体强化学习相关的所有学术风格图片（共 30 张）
 
 图片分类:
 - 基础 (7张): 架构 / 训练曲线 / 奖励分布 / 混淆矩阵 / 检测延迟 / 控制响应 / 方法对比
@@ -11,6 +11,7 @@ MARL 可视化运行脚本
 - 控制评价 (5张): 多工况跟踪 / 动作分布 / 鲁棒性 / 约束满足 / 效率
 - 协同评价 (6张): 时序图 / 奖励分解 / 故障-响应矩阵 / 消融 / 信息流 / Pareto
 - 新增 (1张): 训练过程动态相图
+- 理论原理图 (6张): 奖励结构 / 故障注入 / PIKAN架构 / 控制+Critic / MAPPO流程 / 课程学习
 
 生成的图片保存在 visualization_output/training/ 和 visualization_output/modeling/ 目录下
 
@@ -68,6 +69,13 @@ from visualization.marl_plots import (
     plot_collaborative_pareto_front,
     # 新增高冲击力图表
     plot_training_phase_diagram,
+    # 理论原理示意图 6 张
+    plot_reward_structure_schematic,
+    plot_fault_injection_schematic,
+    plot_pikan_architecture,
+    plot_control_critic_architecture,
+    plot_mappo_training_flow,
+    plot_curriculum_schedule,
 )
 
 
@@ -126,7 +134,7 @@ def main():
     print("=" * 70)
 
     results = {}
-    total = 24
+    total = 30
     idx = 0
 
     def _step(name: str):
@@ -509,6 +517,72 @@ def main():
         results['training_phase_diagram'] = f'FAILED: {e}'
 
     _close()  # 释放协同评价图内存
+
+    # ══════════════════════════════════════════════════════════════════
+    # 理论原理示意图 6 张（category='modeling'）
+    # ══════════════════════════════════════════════════════════════════
+
+    # ── 25. 奖励函数结构示意图 ────────────────────────────────────────
+    try:
+        print(f"\n{_step('rew_sch')} 生成奖励函数结构示意图...")
+        plot_reward_structure_schematic()
+        results['reward_structure_schematic'] = 'OK'
+        print("  ✓ 完成")
+    except Exception as e:
+        print(f"  ✗ 失败: {e}")
+        results['reward_structure_schematic'] = f'FAILED: {e}'
+
+    # ── 26. 故障注入与变工况调度示意图 ────────────────────────────────
+    try:
+        print(f"\n{_step('fi_sch')} 生成故障注入与变工况调度示意图...")
+        plot_fault_injection_schematic()
+        results['fault_injection_schematic'] = 'OK'
+        print("  ✓ 完成")
+    except Exception as e:
+        print(f"  ✗ 失败: {e}")
+        results['fault_injection_schematic'] = f'FAILED: {e}'
+
+    # ── 27. PIKAN 网络结构示意图 ──────────────────────────────────────
+    try:
+        print(f"\n{_step('pikan')} 生成 PIKAN 网络结构示意图...")
+        plot_pikan_architecture()
+        results['pikan_architecture'] = 'OK'
+        print("  ✓ 完成")
+    except Exception as e:
+        print(f"  ✗ 失败: {e}")
+        results['pikan_architecture'] = f'FAILED: {e}'
+
+    # ── 28. 控制网络与共享Critic结构 ──────────────────────────────────
+    try:
+        print(f"\n{_step('cc_arch')} 生成控制网络与共享 Critic 结构图...")
+        plot_control_critic_architecture()
+        results['control_critic_architecture'] = 'OK'
+        print("  ✓ 完成")
+    except Exception as e:
+        print(f"  ✗ 失败: {e}")
+        results['control_critic_architecture'] = f'FAILED: {e}'
+
+    # ── 29. MAPPO 训练流程图 ──────────────────────────────────────────
+    try:
+        print(f"\n{_step('mappo')} 生成 MAPPO 训练流程图...")
+        plot_mappo_training_flow()
+        results['mappo_training_flow'] = 'OK'
+        print("  ✓ 完成")
+    except Exception as e:
+        print(f"  ✗ 失败: {e}")
+        results['mappo_training_flow'] = f'FAILED: {e}'
+
+    # ── 30. 课程学习难度调度图 ────────────────────────────────────────
+    try:
+        print(f"\n{_step('curri')} 生成课程学习难度调度示意图...")
+        plot_curriculum_schedule()
+        results['curriculum_schedule'] = 'OK'
+        print("  ✓ 完成")
+    except Exception as e:
+        print(f"  ✗ 失败: {e}")
+        results['curriculum_schedule'] = f'FAILED: {e}'
+
+    _close()  # 释放理论图内存
 
     # ══════════════════════════════════════════════════════════════════
     # 结果汇总
